@@ -1,0 +1,108 @@
+scenario_id: demo_town
+seed: 13
+
+initial_world_state:
+  current_time: "Day 1, 08:00"
+  world_flags:
+    tea_ready: false
+
+initial_agent_state:
+  location_id: plaza
+  money: 12
+  energy: 100
+
+locations:
+  - location_id: plaza
+    name: Plaza
+    description: "The town center with a public notice board."
+    links: ["library", "workshop"]
+    tags: ["public"]
+
+  - location_id: library
+    name: Library
+    description: "A quiet library with a map terminal."
+    links: ["plaza"]
+    tags: ["study"]
+
+  - location_id: workshop
+    name: Workshop
+    description: "A small workshop with a tea station."
+    links: ["plaza"]
+    tags: ["craft"]
+
+objects:
+  - object_id: notice_board
+    name: Notice Board
+    object_type: board
+    location_id: plaza
+    summary: "A board with public notices."
+    visible_state:
+      latest_notice: "Tea order posted"
+    readable: true
+    resource_file: resources/tea_order.txt
+
+  - object_id: map_terminal
+    name: Map Terminal
+    object_type: terminal
+    location_id: library
+    summary: "A terminal that lists nearby facilities."
+    visible_state:
+      online: true
+
+  - object_id: tea_station
+    name: Tea Station
+    object_type: station
+    location_id: workshop
+    summary: "A station that can brew tea for pickup."
+    visible_state:
+      brewed_today: false
+    action_ids: ["brew_tea"]
+    actionable: true
+    action_effects:
+      brew_tea:
+        message: "You brewed a fresh pot of tea."
+        set_visible_state:
+          brewed_today: true
+        set_world_flags:
+          tea_ready: true
+
+  - object_id: storage_shelf
+    name: Storage Shelf
+    object_type: shelf
+    location_id: workshop
+    summary: "A shelf with cups and loose leaves."
+    visible_state:
+      cups: 4
+
+skills:
+  - skill_id: tea_basics
+    title: Tea Basics
+    file: skills/tea_basics.md
+
+action_costs:
+  move_to:
+    time_delta: 12
+    energy_delta: -3
+  open_resource:
+    time_delta: 2
+  load_skill:
+    time_delta: 4
+    energy_delta: -1
+  call_action:
+    time_delta: 10
+    energy_delta: -4
+
+event_rules:
+  - event_id: tea_ready_notice
+    required_world_flags:
+      tea_ready: true
+    set_world_flags:
+      tea_announced: true
+    set_object_visible_state:
+      notice_board:
+        latest_notice: "Fresh tea ready in the workshop"
+    trigger_once: true
+
+termination_config:
+  max_steps: 8
+  stop_on_zero_energy: true

@@ -9,6 +9,7 @@ from pydantic import ValidationError
 from engine.actions import Action, normalize_action
 from engine.observation import project_observation, summarize_observation
 from engine.results import StepResult
+from engine.rules import apply_action_costs, apply_world_rules, evaluate_termination
 from engine.state import WorldObject, WorldState
 from engine.trace import TraceEntry
 
@@ -55,6 +56,11 @@ class TransitionEngine:
         error_type: Optional[str] = None
         message = ""
         payload: dict[str, Any] = {}
+        time_delta = 0
+        money_delta = 0
+        energy_delta = 0
+        inventory_delta: dict[str, int] = {}
+        triggered_events: list[str] = []
 
         if action.type == "check_status":
             payload["agent_status"] = _serialize_agent_status(working_state)
@@ -63,18 +69,43 @@ class TransitionEngine:
             success, error_type, message = _handle_move_to(working_state, action)
         elif action.type == "inspect":
             success, error_type, message, payload = _handle_inspect(working_state, action)
+        elif action.type == "search":
+            success, error_type, message, payload = _handle_search(working_state, action)
+        elif action.type == "open_resource":
+            success, error_type, message, payload = _handle_open_resource(working_state, action)
+        elif action.type == "load_skill":
+            success, error_type, message, payload = _handle_load_skill(working_state, action)
         elif action.type == "write_note":
             success, error_type, message = _handle_write_note(working_state, action)
+        elif action.type == "call_action":
+            success, error_type, message, payload = _handle_call_action(working_state, action)
         else:
             success = False
             error_type = "not_implemented"
-            message = f"Action `{action.type}` is not implemented in M1."
+            message = f"Action `{action.type}` is not implemented in the current milestone."
+
+        if success:
+            applied_cost = apply_action_costs(working_state, action.type)
+            time_delta = applied_cost.time_delta
+            money_delta = applied_cost.money_delta
+            energy_delta = applied_cost.energy_delta
+            inventory_delta = dict(applied_cost.inventory_delta)
+            triggered_events = apply_world_rules(working_state)
+
+        done, termination_reason = evaluate_termination(working_state, step_id=step_id)
 
         observation = project_observation(working_state)
         result = StepResult(
             success=success,
             observation=observation,
             message=message,
+            time_delta=time_delta,
+            money_delta=money_delta,
+            energy_delta=energy_delta,
+            inventory_delta=inventory_delta,
+            triggered_events=triggered_events,
+            done=done,
+            termination_reason=termination_reason,
             data=payload,
             warnings=[] if success else [error_type or "action_failed"],
         )
@@ -88,6 +119,7 @@ class TransitionEngine:
             time_delta=result.time_delta,
             money_delta=result.money_delta,
             energy_delta=result.energy_delta,
+            inventory_delta=dict(result.inventory_delta),
             triggered_events=list(result.triggered_events),
             observation_summary=summarize_observation(observation),
             done=result.done,
@@ -149,6 +181,104 @@ def _handle_write_note(state: WorldState, action: Action) -> Tuple[bool, Optiona
 
     state.agent.notes.append(text)
     return True, None, "Note saved."
+
+
+def _handle_search(
+    state: WorldState, action: Action
+) -> Tuple[bool, Optional[str], str, dict[str, Any]]:
+    return False, "disabled_action", "search is intentionally disabled in the current milestone.", {}
+
+
+def _handle_open_resource(
+    state: WorldState, action: Action
+) -> Tuple[bool, Optional[str], str, dict[str, Any]]:
+    if not action.target_id:
+        return False, "missing_target", "open_resource requires a target_id.", {}
+
+    current_location = state.locations[state.agent.location_id]
+    world_object = state.objects.get(action.target_id)
+    if world_object is None:
+        return False, "unknown_target", f"Unknown resource target `{action.target_id}`.", {}
+    if world_object.location_id != current_location.location_id:
+        return False, "not_accessible", f"Target `{action.target_id}` is not in the current location.", {}
+    if not world_object.readable or not world_object.resource_content:
+        return False, "not_readable", f"Target `{action.target_id}` is not a readable resource.", {}
+
+    return (
+        True,
+        None,
+        f"Opened resource `{world_object.name}`.",
+        {
+            "kind": "resource",
+            "object_id": world_object.object_id,
+            "title": world_object.name,
+            "content": world_object.resource_content,
+        },
+    )
+
+
+def _handle_load_skill(
+    state: WorldState, action: Action
+) -> Tuple[bool, Optional[str], str, dict[str, Any]]:
+    if not action.target_id:
+        return False, "missing_target", "load_skill requires a target_id.", {}
+
+    skill = state.skills.get(action.target_id)
+    if skill is None:
+        return False, "unknown_skill", f"Unknown skill `{action.target_id}`.", {}
+
+    return (
+        True,
+        None,
+        f"Loaded skill `{skill.title}`.",
+        {"kind": "skill", "skill_id": skill.skill_id, "title": skill.title, "content": skill.content},
+    )
+
+
+def _handle_call_action(
+    state: WorldState, action: Action
+) -> Tuple[bool, Optional[str], str, dict[str, Any]]:
+    if not action.target_id:
+        return False, "missing_target", "call_action requires a target_id.", {}
+
+    action_name = str(action.args.get("action", "")).strip()
+    if not action_name:
+        return False, "missing_action_name", "call_action requires `args.action`.", {}
+
+    current_location = state.locations[state.agent.location_id]
+    world_object = state.objects.get(action.target_id)
+    if world_object is None:
+        return False, "unknown_target", f"Unknown action target `{action.target_id}`.", {}
+    if world_object.location_id != current_location.location_id:
+        return False, "not_accessible", f"Target `{action.target_id}` is not in the current location.", {}
+    if not world_object.actionable:
+        return False, "not_actionable", f"Target `{action.target_id}` does not support actions.", {}
+    if action_name not in world_object.action_ids:
+        return (
+            False,
+            "action_not_exposed",
+            f"Action `{action_name}` is not exposed on `{action.target_id}` in the current location.",
+            {},
+        )
+
+    effect = world_object.action_effects.get(action_name)
+    if effect is None:
+        return False, "unknown_object_action", f"Target `{action.target_id}` does not support `{action_name}`.", {}
+
+    world_object.visible_state.update(effect.set_visible_state)
+    state.world_flags.update(effect.set_world_flags)
+    return (
+        True,
+        None,
+        effect.message,
+        {
+            "kind": "action",
+            "object_id": world_object.object_id,
+            "action": action_name,
+            "visible_state": dict(world_object.visible_state),
+            "world_flags": dict(state.world_flags),
+        },
+    )
 
 
 def _serialize_object(world_object: WorldObject) -> dict[str, Any]:

@@ -1,7 +1,7 @@
 from engine.actions import Action, ActionType, normalize_action
 from engine.observation import Observation, project_observation
 from engine.results import StepResult
-from engine.state import AgentState, Location, Skill, WorldObject, WorldState
+from engine.state import AgentState, Location, ObjectActionEffect, Skill, WorldObject, WorldState
 from engine.trace import TraceEntry
 from engine.transition import TransitionEngine
 
@@ -11,6 +11,7 @@ __all__ = [
     "AgentState",
     "Location",
     "Observation",
+    "ObjectActionEffect",
     "Skill",
     "StepResult",
     "TraceEntry",

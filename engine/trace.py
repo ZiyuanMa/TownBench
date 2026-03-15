@@ -15,6 +15,7 @@ class TraceEntry(BaseModel):
     time_delta: int = 0
     money_delta: int = 0
     energy_delta: int = 0
+    inventory_delta: dict[str, int] = Field(default_factory=dict)
     triggered_events: list[str] = Field(default_factory=list)
     observation_summary: dict[str, Any] = Field(default_factory=dict)
     done: bool = False
