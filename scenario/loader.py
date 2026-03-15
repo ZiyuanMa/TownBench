@@ -101,6 +101,8 @@ def load_scenario(path: Union[str, Path]) -> WorldState:
         locations=locations,
         objects=objects,
         skills=skills,
+        opening_briefing=config.opening_briefing,
+        public_rules=list(config.public_rules),
         world_flags=dict(config.initial_world_state.world_flags),
         action_costs={
             action_type: ActionCost(

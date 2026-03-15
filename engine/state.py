@@ -80,6 +80,8 @@ class WorldState(BaseModel):
     locations: dict[str, Location]
     objects: dict[str, WorldObject] = Field(default_factory=dict)
     skills: dict[str, Skill] = Field(default_factory=dict)
+    opening_briefing: str = ""
+    public_rules: list[str] = Field(default_factory=list)
     world_flags: dict[str, bool] = Field(default_factory=dict)
     action_costs: dict[str, ActionCost] = Field(default_factory=dict)
     event_rules: list[WorldEventRule] = Field(default_factory=list)

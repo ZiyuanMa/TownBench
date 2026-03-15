@@ -1,6 +1,12 @@
 scenario_id: demo_town
 seed: 13
 
+opening_briefing: "You arrived in town at the start of the day. Public notices and shared facilities can help you find work and keep yourself going."
+public_rules:
+  - "Actions cost time and some actions cost energy."
+  - "Important information is distributed across places, objects and written resources."
+  - "You are not given the full settlement logic directly; act from public signals and observed outcomes."
+
 initial_world_state:
   current_time: "Day 1, 08:00"
   world_flags:

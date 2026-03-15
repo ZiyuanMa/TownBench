@@ -81,6 +81,8 @@ class ScenarioTerminationConfig(BaseModel):
 class ScenarioConfig(BaseModel):
     scenario_id: str
     seed: Optional[int] = None
+    opening_briefing: str = ""
+    public_rules: list[str] = Field(default_factory=list)
     initial_world_state: ScenarioInitialWorldState = Field(default_factory=ScenarioInitialWorldState)
     initial_agent_state: ScenarioInitialAgentState
     locations: list[ScenarioLocation] = Field(default_factory=list)

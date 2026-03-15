@@ -16,6 +16,8 @@ def test_load_scenario_builds_world_state():
     assert set(state.locations) == {"plaza", "library", "workshop"}
     assert state.objects["notice_board"].resource_content.startswith("Tea order")
     assert state.skills["tea_basics"].content.startswith("# Tea Basics")
+    assert state.opening_briefing.startswith("You arrived in town")
+    assert state.public_rules[0].startswith("Actions cost time")
     assert state.action_costs["move_to"].time_delta == 12
     assert state.event_rules[0].event_id == "tea_ready_notice"
     assert state.termination_config.max_steps == 8
