@@ -230,8 +230,14 @@ def _handle_load_skill(
     return (
         True,
         None,
-        f"Loaded skill `{skill.title}`.",
-        {"kind": "skill", "skill_id": skill.skill_id, "title": skill.title, "content": skill.content},
+        f"Loaded skill `{skill.name}`.",
+        {
+            "kind": "skill",
+            "skill_id": skill.skill_id,
+            "name": skill.name,
+            "description": skill.description,
+            "content": skill.content,
+        },
     )
 
 

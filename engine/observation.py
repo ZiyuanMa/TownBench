@@ -35,7 +35,8 @@ class ObjectObservation(BaseModel):
 
 class SkillObservation(BaseModel):
     skill_id: str
-    title: str
+    name: str
+    description: str
 
 
 class Observation(BaseModel):
@@ -79,7 +80,7 @@ def _project_object(world_object: WorldObject) -> ObjectObservation:
 
 
 def _project_skill(skill: Skill) -> SkillObservation:
-    return SkillObservation(skill_id=skill.skill_id, title=skill.title)
+    return SkillObservation(skill_id=skill.skill_id, name=skill.name, description=skill.description)
 
 
 def project_observation(state: WorldState) -> Observation:

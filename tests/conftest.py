@@ -56,7 +56,8 @@ def minimal_world_state() -> WorldState:
         skills={
             "safety_basics": Skill(
                 skill_id="safety_basics",
-                title="Safety Basics",
+                name="Safety Basics",
+                description="Simple safety reminders for acting in the town.",
                 content="Always check your location before acting.",
             )
         },

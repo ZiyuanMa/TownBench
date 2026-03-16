@@ -70,7 +70,8 @@ class ObjectActionEffect(BaseModel):
 
 class Skill(BaseModel):
     skill_id: str
-    title: str
+    name: str
+    description: str
     content: str
 
 

@@ -54,11 +54,7 @@ def load_scenario(path: Union[str, Path]) -> WorldState:
         locations[item.location_id].object_ids.append(item.object_id)
 
     skills = {
-        item.skill_id: Skill(
-            skill_id=item.skill_id,
-            title=item.title,
-            content=_read_text(base_dir / item.file),
-        )
+        item.skill_id: _load_skill(base_dir / item.file, item.skill_id)
         for item in config.skills
     }
 
@@ -83,6 +79,55 @@ def load_scenario(path: Union[str, Path]) -> WorldState:
 
 def _read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8").strip()
+
+
+def _load_skill(path: Path, skill_id: str) -> Skill:
+    raw_content = _read_text(path)
+    metadata, content = _parse_skill_document(raw_content, path=path)
+    return Skill(
+        skill_id=skill_id,
+        name=metadata["name"],
+        description=metadata["description"],
+        content=content,
+    )
+
+
+def _parse_skill_document(raw_content: str, *, path: Path) -> tuple[dict[str, str], str]:
+    if not raw_content.startswith("---\n"):
+        raise ValueError(f"Skill file `{path}` must begin with YAML frontmatter.")
+
+    closing_delimiter = raw_content.find("\n---\n", 4)
+    if closing_delimiter == -1:
+        raise ValueError(f"Skill file `{path}` must close its YAML frontmatter with `---`.")
+
+    metadata_block = raw_content[4:closing_delimiter]
+    body = raw_content[closing_delimiter + len("\n---\n"):].strip()
+    metadata = yaml.safe_load(metadata_block) or {}
+
+    if not isinstance(metadata, dict):
+        raise ValueError(f"Skill file `{path}` frontmatter must be a YAML mapping.")
+
+    name = _require_skill_metadata_string(metadata, "name", path=path)
+    description = _require_skill_metadata_string(metadata, "description", path=path)
+    if not body:
+        raise ValueError(f"Skill file `{path}` must contain non-empty markdown content after frontmatter.")
+
+    return {"name": name, "description": description}, body
+
+
+def _require_skill_metadata_string(metadata: dict[str, object], field_name: str, *, path: Path) -> str:
+    value = metadata.get(field_name)
+    if not isinstance(value, str):
+        raise ValueError(
+            f"Skill file `{path}` must define `{field_name}` as a non-empty string in frontmatter."
+        )
+
+    normalized = value.strip()
+    if not normalized:
+        raise ValueError(
+            f"Skill file `{path}` must define `{field_name}` as a non-empty string in frontmatter."
+        )
+    return normalized
 
 
 def _ensure_unique_ids(values: list[str], label: str) -> None:

@@ -31,7 +31,7 @@ def build_townbench_tools(
 
     @decorator
     def load_skill(target_id: str) -> dict[str, Any]:
-        """Load a skill document by skill id."""
+        """Load a skill document by skill id and return its full content."""
         return _serialize_step_result(env.step({"type": "load_skill", "target_id": target_id}))
 
     @decorator

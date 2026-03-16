@@ -17,7 +17,6 @@ class ScenarioObjectSource(WorldObject):
 
 class ScenarioSkillSource(BaseModel):
     skill_id: str
-    title: str
     file: str
 
 

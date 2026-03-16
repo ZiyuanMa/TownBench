@@ -82,7 +82,6 @@ objects:
 
 skills:
   - skill_id: tea_basics
-    title: Tea Basics
     file: skills/tea_basics.md
 
 action_costs:
