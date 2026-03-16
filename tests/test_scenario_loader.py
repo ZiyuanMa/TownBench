@@ -146,6 +146,32 @@ skills: []
         load_scenario(scenario_file)
 
 
+def test_loader_rejects_authored_location_object_ids(tmp_path):
+    scenario_file = tmp_path / "bad_scenario.yaml"
+    scenario_file.write_text(
+        """
+scenario_id: broken
+initial_agent_state:
+  location_id: plaza
+locations:
+  - location_id: plaza
+    name: Plaza
+    description: A plaza.
+    object_ids: [notice_board]
+objects:
+  - object_id: notice_board
+    name: Notice Board
+    object_type: board
+    location_id: plaza
+    summary: A board.
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="must not declare `object_ids`"):
+        load_scenario(scenario_file)
+
+
 def test_loader_rejects_hidden_action_effects(tmp_path):
     scenario_file = tmp_path / "bad_scenario.yaml"
     scenario_file.write_text(
