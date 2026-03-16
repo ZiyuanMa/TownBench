@@ -78,7 +78,8 @@ class TransitionEngine:
         elif action.type == "write_note":
             success, error_type, message = _handle_write_note(working_state, action)
         elif action.type == "call_action":
-            success, error_type, message, payload = _handle_call_action(working_state, action)
+            success, error_type, message, payload, effect_money_delta = _handle_call_action(working_state, action)
+            money_delta += effect_money_delta
         else:
             success = False
             error_type = "not_implemented"
@@ -87,7 +88,7 @@ class TransitionEngine:
         if success:
             applied_cost = apply_action_costs(working_state, action.type)
             time_delta = applied_cost.time_delta
-            money_delta = applied_cost.money_delta
+            money_delta += applied_cost.money_delta
             energy_delta = applied_cost.energy_delta
             inventory_delta = dict(applied_cost.inventory_delta)
             triggered_events = apply_world_rules(working_state)
@@ -243,36 +244,45 @@ def _handle_load_skill(
 
 def _handle_call_action(
     state: WorldState, action: Action
-) -> Tuple[bool, Optional[str], str, dict[str, Any]]:
+) -> Tuple[bool, Optional[str], str, dict[str, Any], int]:
     if not action.target_id:
-        return False, "missing_target", "call_action requires a target_id.", {}
+        return False, "missing_target", "call_action requires a target_id.", {}, 0
 
     action_name = str(action.args.get("action", "")).strip()
     if not action_name:
-        return False, "missing_action_name", "call_action requires `args.action`.", {}
+        return False, "missing_action_name", "call_action requires `args.action`.", {}, 0
 
     current_location = state.locations[state.agent.location_id]
     world_object = state.objects.get(action.target_id)
     if world_object is None:
-        return False, "unknown_target", f"Unknown action target `{action.target_id}`.", {}
+        return False, "unknown_target", f"Unknown action target `{action.target_id}`.", {}, 0
     if world_object.location_id != current_location.location_id:
-        return False, "not_accessible", f"Target `{action.target_id}` is not in the current location.", {}
+        return False, "not_accessible", f"Target `{action.target_id}` is not in the current location.", {}, 0
     if not world_object.actionable:
-        return False, "not_actionable", f"Target `{action.target_id}` does not support actions.", {}
+        return False, "not_actionable", f"Target `{action.target_id}` does not support actions.", {}, 0
     if action_name not in world_object.action_ids:
         return (
             False,
             "action_not_exposed",
             f"Action `{action_name}` is not exposed on `{action.target_id}` in the current location.",
             {},
+            0,
         )
 
     effect = world_object.action_effects.get(action_name)
     if effect is None:
-        return False, "unknown_object_action", f"Target `{action.target_id}` does not support `{action_name}`.", {}
+        return (
+            False,
+            "unknown_object_action",
+            f"Target `{action.target_id}` does not support `{action_name}`.",
+            {},
+            0,
+        )
 
     world_object.visible_state.update(effect.set_visible_state)
     state.world_flags.update(effect.set_world_flags)
+    if effect.money_delta:
+        state.agent.money += effect.money_delta
     return (
         True,
         None,
@@ -283,7 +293,9 @@ def _handle_call_action(
             "action": action_name,
             "visible_state": dict(world_object.visible_state),
             "world_flags": dict(state.world_flags),
+            "money": state.agent.money,
         },
+        effect.money_delta,
     )
 
 

@@ -1,4 +1,5 @@
 from runtime.env import TownBenchEnv
+from engine.state import ObjectActionEffect
 from scenario.loader import load_scenario
 
 
@@ -31,3 +32,22 @@ def test_trace_records_termination_state(minimal_world_state):
     assert result.termination_reason == "max_steps_reached"
     assert trace[-1].done is True
     assert trace[-1].termination_reason == "max_steps_reached"
+
+
+def test_trace_records_money_delta_from_object_actions(minimal_world_state):
+    env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
+    env.reset()
+    env.state.objects["counter"].actionable = True
+    env.state.objects["counter"].action_ids = ["sell_snack"]
+    env.state.objects["counter"].action_effects = {
+        "sell_snack": ObjectActionEffect(
+            message="Sold a snack.",
+            money_delta=5,
+        )
+    }
+    env.step({"type": "move_to", "target_id": "market"})
+    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "sell_snack"}})
+
+    trace = env.get_trace()
+    assert result.money_delta == 5
+    assert trace[-1].money_delta == 5

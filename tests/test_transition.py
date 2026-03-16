@@ -97,3 +97,32 @@ def test_world_rules_and_success_termination_apply_after_action(minimal_world_st
     assert result.termination_reason == "success:errand_complete"
     assert env.state.world_flags["errand_complete"] is True
     assert env.state.objects["counter"].visible_state["receipt_ready"] is True
+
+
+def test_call_action_can_apply_money_delta_and_reports_net_step_delta(minimal_world_state):
+    env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
+    env.reset()
+    env.state.objects["counter"].actionable = True
+    env.state.objects["counter"].action_ids = ["sell_snack"]
+    env.state.objects["counter"].action_effects = {
+        "sell_snack": ObjectActionEffect(
+            message="Sold a snack.",
+            money_delta=7,
+            set_visible_state={"last_sale": "snack"},
+        )
+    }
+    env.step({"type": "move_to", "target_id": "market"})
+
+    result = env.step(
+        {
+            "type": "call_action",
+            "target_id": "counter",
+            "args": {"action": "sell_snack"},
+        }
+    )
+
+    assert result.success is True
+    assert result.money_delta == 7
+    assert env.state.agent.money == 27
+    assert result.data["money"] == 27
+    assert env.state.objects["counter"].visible_state["last_sale"] == "snack"
