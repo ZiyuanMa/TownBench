@@ -32,8 +32,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--max-turns",
         type=int,
-        default=None,
-        help="Optional override for max turns.",
+        default=8,
+        help="Maximum OpenAI Agents runner turns. This is separate from the scenario's environment limits.",
     )
     parser.add_argument(
         "--model",
@@ -66,8 +66,7 @@ def main() -> int:
         return 1
 
     config = OpenAIAgentsConfig.from_env()
-    if args.max_turns is not None:
-        config.max_turns = args.max_turns
+    config.max_turns = args.max_turns
     if args.model is not None:
         config.model = args.model
 

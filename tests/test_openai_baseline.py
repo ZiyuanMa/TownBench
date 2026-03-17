@@ -50,9 +50,17 @@ class FakeRunner:
 class MaxTurnsRunner:
     @staticmethod
     def run_sync(agent, _input, max_turns, run_config=None):
+        assert max_turns == 2
         tools = {tool.__name__: tool for tool in agent.tools}
         tools["move_to"]("workshop")
         raise MaxTurnsExceeded(f"Max turns ({max_turns}) exceeded")
+
+
+class DefaultMaxTurnsRunner:
+    @staticmethod
+    def run_sync(agent, _input, max_turns, run_config=None):
+        assert max_turns == 8
+        return FakeRunResult("Used CLI default max_turns.")
 
 
 class FakeStreamedRunResult:
@@ -186,6 +194,21 @@ def test_run_openai_agents_episode_returns_partial_result_when_max_turns_exceede
     assert result.done is False
     assert result.termination_reason is None
     assert len(result.trace) == 1
+
+
+def test_run_openai_agents_episode_uses_explicit_runner_turn_limit():
+    scenario_path = Path(__file__).resolve().parents[1] / "scenarios" / "demo_town" / "scenario.yaml"
+    env = TownBenchEnv(load_scenario(scenario_path))
+
+    result = run_openai_agents_episode(
+        env=env,
+        config=OpenAIAgentsConfig(max_turns=8),
+        agent_cls=FakeAgent,
+        runner_cls=DefaultMaxTurnsRunner,
+        function_tool_decorator=_identity_tool,
+    )
+
+    assert result.final_output == "Used CLI default max_turns."
 
 
 def test_run_openai_agents_episode_streamed_emits_text_and_returns_result():
