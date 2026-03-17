@@ -1,2 +1,5 @@
-Tea order for the morning shift.
-Pick up one fresh pot from the workshop after brewing.
+Shift tea work is available from the plaza board.
+
+Requested item: one fresh pot of tea from the workshop.
+Payment: 9 coins each time the completion log is updated after brewing.
+Reminder: brewing alone does not release payment, and payment only applies once per brewed order.

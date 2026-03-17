@@ -11,6 +11,8 @@ initial_world_state:
   current_time: "Day 1, 08:00"
   world_flags:
     tea_ready: false
+    order_logged: false
+    payment_posted: false
 
 initial_agent_state:
   location_id: plaza
@@ -26,7 +28,7 @@ locations:
 
   - location_id: library
     name: Library
-    description: "A quiet library with a map terminal."
+    description: "A quiet library with reference shelves and short workshop guides."
     links: ["plaza"]
     tags: ["study"]
 
@@ -43,17 +45,25 @@ objects:
     location_id: plaza
     summary: "A board with public notices."
     visible_state:
-      latest_notice: "Tea order posted"
+      latest_notice: "Tea work available for the current shift"
     readable: true
     resource_file: resources/tea_order.txt
 
-  - object_id: map_terminal
-    name: Map Terminal
-    object_type: terminal
+  - object_id: recipe_card
+    name: Recipe Card
+    object_type: card
     location_id: library
-    summary: "A terminal that lists nearby facilities."
-    visible_state:
-      online: true
+    summary: "A short card with workshop brewing notes."
+    readable: true
+    resource_file: resources/recipe_card.txt
+
+  - object_id: archive_book
+    name: Archive Book
+    object_type: book
+    location_id: library
+    summary: "A local history book with a chapter about tea culture."
+    readable: true
+    resource_file: resources/archive_book.txt
 
   - object_id: tea_station
     name: Tea Station
@@ -67,6 +77,9 @@ objects:
     action_effects:
       brew_tea:
         message: "You brewed a fresh pot of tea."
+        required_world_flags:
+          tea_ready: false
+          order_logged: false
         set_visible_state:
           brewed_today: true
         set_world_flags:
@@ -79,10 +92,38 @@ objects:
     summary: "A shelf with cups and loose leaves."
     visible_state:
       cups: 4
+      tea_leaves: in_stock
+
+  - object_id: completion_log
+    name: Completion Log
+    object_type: ledger
+    location_id: workshop
+    summary: "A ledger used to record finished tea orders and collect payment."
+    visible_state:
+      last_entry: none
+    action_ids: ["record_order"]
+    actionable: true
+    action_effects:
+      record_order:
+        message: "You recorded the finished tea order and collected payment."
+        money_delta: 9
+        required_world_flags:
+          tea_ready: true
+          order_logged: false
+        set_visible_state:
+          last_entry: morning_tea_order
+        set_world_flags:
+          order_logged: true
 
 skills:
   - skill_id: tea_basics
     file: skills/tea_basics.md
+  - skill_id: inventory_rules
+    file: skills/inventory_rules.md
+  - skill_id: order_fulfillment
+    file: skills/order_fulfillment.md
+  - skill_id: tea_history
+    file: skills/tea_history.md
 
 action_costs:
   move_to:
@@ -101,13 +142,31 @@ event_rules:
   - event_id: tea_ready_notice
     required_world_flags:
       tea_ready: true
+      order_logged: false
     set_world_flags:
       tea_announced: true
     set_object_visible_state:
       notice_board:
-        latest_notice: "Fresh tea ready in the workshop"
-    trigger_once: true
+        latest_notice: "Fresh tea ready for pickup at the workshop"
+    trigger_once: false
+
+  - event_id: order_paid_notice
+    required_world_flags:
+      order_logged: true
+    set_world_flags:
+      tea_ready: false
+      order_logged: false
+      tea_announced: false
+      payment_posted: true
+    set_object_visible_state:
+      notice_board:
+        latest_notice: "Tea order paid. Another shift order is now posted."
+      tea_station:
+        brewed_today: false
+      completion_log:
+        last_entry: payout_collected
+    trigger_once: false
 
 termination_config:
-  max_steps: 8
+  max_steps: 10
   stop_on_zero_energy: true
