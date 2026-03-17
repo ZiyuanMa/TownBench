@@ -30,8 +30,12 @@ def build_openai_agent(
 
 def build_default_instructions() -> str:
     return (
-        "You are solving a TownBench episode. Use the provided tools instead of inventing actions. "
-        "Read tool outputs carefully, keep notes when useful, and act only from the public context you are given."
+        "You are solving a TownBench episode. Your standing objective is to improve the agent's economic state, "
+        "especially money, while respecting time and energy limits. Use the provided tools instead of inventing "
+        "actions. Read tool outputs carefully, act only from the public context you are given, and prefer actions "
+        "that create or preserve economic value. Do not assume the episode ends just because one task or order is "
+        "finished. If the environment is still in progress, continue unless there is no clearly profitable next step. "
+        "Before concluding that you are done, check the current status."
     )
 
 

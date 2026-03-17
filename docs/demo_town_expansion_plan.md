@@ -19,9 +19,10 @@ This means the expansion should stop framing the episode as "complete the tea or
 
 ## Scope
 
-This plan focuses on extending scenario content first, with one small engine addition:
+This plan focuses on extending scenario content first, with two small engine additions:
 
 - object actions should support `money_delta`
+- object actions should support simple `required_world_flags`
 
 The rest of the first version should stay within the current primitives:
 
@@ -33,6 +34,7 @@ The rest of the first version should stay within the current primitives:
 - action costs
 
 No large reward system, inventory economy, or planner-specific logic is required in the first pass.
+The `required_world_flags` addition is mainly there to prevent obvious economic exploits such as recording the same order for repeated payout.
 
 ## Design Principles
 
@@ -187,8 +189,8 @@ Behavior:
 - successful use should set `order_logged: true`
 - successful use should apply `money_delta` to pay the agent
 
-In the first implementation this can remain scenario-authored and permissive.
-If needed later, it can gain explicit preconditions.
+In the first implementation this should require brewed tea and block repeated payout with simple world-flag preconditions.
+If needed later, it can gain richer preconditions beyond world flags.
 
 ### `recipe_card`
 
@@ -342,7 +344,7 @@ Suggested direction:
 
 ## Implementation Phases
 
-### Phase 1: Scenario Expansion Plus `money_delta`
+### Phase 1: Scenario Expansion Plus Small Action Preconditions
 
 Work items:
 
@@ -353,7 +355,9 @@ Work items:
 - add `archive_book`
 - update the notice board order text to include payout
 - add `money_delta` support to object action effects
+- add `required_world_flags` support to object action effects
 - make order completion pay the agent
+- prevent payout before brewing or after a prior payout
 - keep termination horizon-based rather than task-success-based
 
 Expected result:
@@ -390,6 +394,7 @@ Add or update tests for the following behaviors:
 - initial observation exposes only skill metadata, not full content
 - `load_skill` returns `name`, `description`, and `content`
 - `call_action` can apply authored `money_delta`
+- `call_action` respects authored `required_world_flags`
 - trace and step results report the action money delta correctly
 - distractor resources are readable but do not affect money directly
 - visible world state changes after brewing and after payout
@@ -407,7 +412,9 @@ The first concrete patch should stay small and economic:
 - add `inventory_rules`, `order_fulfillment`, and `tea_history`
 - add `completion_log`, `recipe_card`, and `archive_book`
 - add `money_delta` to `ObjectActionEffect`
+- add `required_world_flags` to `ObjectActionEffect`
 - make `record_order` pay the agent
+- require brewed tea before payout
 - keep episode progression driven by time, energy, and money rather than terminal task success
 
 ## Expected Outcome

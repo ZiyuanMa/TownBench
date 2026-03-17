@@ -1,8 +1,12 @@
 ---
 name: Tea Basics
-description: Basic tea preparation steps for the workshop tea station.
+description: Basic workshop tea preparation steps.
 ---
 
 # Tea Basics
 
-Before serving tea, confirm the station location and brew it on site.
+Tea orders in this town are brewed in the `workshop`.
+
+Use the `tea_station` for the actual production step.
+
+Brewing is the core action that turns the posted order into something ready for pickup.

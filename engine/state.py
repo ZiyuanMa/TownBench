@@ -65,6 +65,7 @@ class WorldObject(BaseModel):
 class ObjectActionEffect(BaseModel):
     message: str
     money_delta: int = 0
+    required_world_flags: dict[str, bool] = Field(default_factory=dict)
     set_visible_state: dict[str, Any] = Field(default_factory=dict)
     set_world_flags: dict[str, bool] = Field(default_factory=dict)
 

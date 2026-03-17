@@ -278,6 +278,14 @@ def _handle_call_action(
             {},
             0,
         )
+    if not _matches_required_world_flags(state.world_flags, effect.required_world_flags):
+        return (
+            False,
+            "missing_prerequisites",
+            f"Action `{action_name}` on `{action.target_id}` is not available in the current world state.",
+            {},
+            0,
+        )
 
     world_object.visible_state.update(effect.set_visible_state)
     state.world_flags.update(effect.set_world_flags)
@@ -326,3 +334,7 @@ def _raw_action_payload(raw_action: Union[Action, Mapping[str, Any]]) -> dict[st
     if isinstance(raw_action, Action):
         return raw_action.model_dump()
     return dict(raw_action)
+
+
+def _matches_required_world_flags(current_flags: dict[str, bool], required_flags: dict[str, bool]) -> bool:
+    return all(current_flags.get(flag) is expected for flag, expected in required_flags.items())

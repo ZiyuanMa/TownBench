@@ -43,7 +43,8 @@ class FakeRunner:
         tools = {tool.__name__: tool for tool in agent.tools}
         tools["move_to"]("workshop")
         tools["call_action"]("tea_station", "brew_tea")
-        return FakeRunResult("Tea is ready.")
+        tools["call_action"]("completion_log", "record_order")
+        return FakeRunResult("Order paid.")
 
 
 class MaxTurnsRunner:
@@ -56,7 +57,7 @@ class MaxTurnsRunner:
 
 class FakeStreamedRunResult:
     def __init__(self, agent, tools):
-        self.final_output = "Tea is ready."
+        self.final_output = "Order paid."
         self._agent = agent
         self._tools = tools
 
@@ -64,7 +65,7 @@ class FakeStreamedRunResult:
         yield RawResponsesStreamEvent(
             data=ResponseTextDeltaEvent(
                 content_index=0,
-                delta="Tea",
+                delta="Order",
                 item_id="item_1",
                 logprobs=[],
                 output_index=0,
@@ -75,7 +76,7 @@ class FakeStreamedRunResult:
         yield RawResponsesStreamEvent(
             data=ResponseTextDeltaEvent(
                 content_index=0,
-                delta=" ready.",
+                delta=" paid.",
                 item_id="item_1",
                 logprobs=[],
                 output_index=0,
@@ -88,6 +89,8 @@ class FakeStreamedRunResult:
         tools["move_to"]("workshop")
         yield RunItemStreamEvent(name="move_to", item=_FakeToolCallItem())
         tools["call_action"]("tea_station", "brew_tea")
+        yield RunItemStreamEvent(name="call_action", item=_FakeToolOutputItem())
+        tools["call_action"]("completion_log", "record_order")
         yield RunItemStreamEvent(name="call_action", item=_FakeToolOutputItem())
 
 
@@ -115,11 +118,16 @@ def test_build_townbench_tools_executes_env_steps():
     tools = {tool.__name__: tool for tool in build_townbench_tools(env, function_tool_decorator=_identity_tool)}
 
     move_result = tools["move_to"]("workshop")
-    action_result = tools["call_action"]("tea_station", "brew_tea")
+    brew_result = tools["call_action"]("tea_station", "brew_tea")
+    payout_result = tools["call_action"]("completion_log", "record_order")
 
     assert move_result["success"] is True
-    assert action_result["success"] is True
-    assert env.state.world_flags["tea_ready"] is True
+    assert brew_result["success"] is True
+    assert payout_result["success"] is True
+    assert env.state.world_flags["tea_ready"] is False
+    assert env.state.world_flags["order_logged"] is False
+    assert env.state.world_flags["payment_posted"] is True
+    assert env.state.agent.money == 21
 
 
 def test_build_openai_agent_uses_config_and_tools():
@@ -136,14 +144,13 @@ def test_build_openai_agent_uses_config_and_tools():
 
     assert agent.name == "Town Bench Test"
     assert agent.model == "test-model"
+    assert "economic state" in agent.instructions
     assert {tool.__name__ for tool in agent.tools} >= {"move_to", "call_action", "check_status"}
 
 
 def test_run_openai_agents_episode_returns_score_and_trace():
     scenario_path = Path(__file__).resolve().parents[1] / "scenarios" / "demo_town" / "scenario.yaml"
-    state = load_scenario(scenario_path)
-    state.termination_config.success_world_flags = ["tea_ready"]
-    env = TownBenchEnv(state)
+    env = TownBenchEnv(load_scenario(scenario_path))
 
     result = run_openai_agents_episode(
         env=env,
@@ -153,14 +160,14 @@ def test_run_openai_agents_episode_returns_score_and_trace():
         function_tool_decorator=_identity_tool,
     )
 
-    assert result.final_output == "Tea is ready."
+    assert result.final_output == "Order paid."
     assert result.opening_briefing.startswith("You arrived in town")
     assert result.public_rules[0].startswith("Actions cost time")
-    assert result.done is True
-    assert result.termination_reason == "success:tea_ready"
+    assert result.done is False
+    assert result.termination_reason is None
     assert result.score.survived_days == 1
-    assert result.score.final_money == 12
-    assert len(result.trace) == 2
+    assert result.score.final_money == 21
+    assert len(result.trace) == 3
 
 
 def test_run_openai_agents_episode_returns_partial_result_when_max_turns_exceeded():
@@ -183,9 +190,7 @@ def test_run_openai_agents_episode_returns_partial_result_when_max_turns_exceede
 
 def test_run_openai_agents_episode_streamed_emits_text_and_returns_result():
     scenario_path = Path(__file__).resolve().parents[1] / "scenarios" / "demo_town" / "scenario.yaml"
-    state = load_scenario(scenario_path)
-    state.termination_config.success_world_flags = ["tea_ready"]
-    env = TownBenchEnv(state)
+    env = TownBenchEnv(load_scenario(scenario_path))
     text_chunks = []
     events = []
 
@@ -201,7 +206,7 @@ def test_run_openai_agents_episode_streamed_emits_text_and_returns_result():
         )
     )
 
-    assert "".join(text_chunks) == "Tea ready."
+    assert "".join(text_chunks) == "Order paid."
     assert any(item.startswith("tool_output:") for item in events)
-    assert result.final_output == "Tea is ready."
-    assert result.done is True
+    assert result.final_output == "Order paid."
+    assert result.done is False
