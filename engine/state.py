@@ -65,9 +65,14 @@ class WorldObject(BaseModel):
 class ObjectActionEffect(BaseModel):
     message: str
     money_delta: int = 0
+    energy_delta: int = 0
+    inventory_delta: dict[str, int] = Field(default_factory=dict)
     required_world_flags: dict[str, bool] = Field(default_factory=dict)
+    required_inventory: dict[str, int] = Field(default_factory=dict)
+    required_money: int = 0
     set_visible_state: dict[str, Any] = Field(default_factory=dict)
     set_world_flags: dict[str, bool] = Field(default_factory=dict)
+    move_to_location_id: Optional[str] = None
 
 
 class Skill(BaseModel):

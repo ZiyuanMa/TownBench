@@ -390,6 +390,37 @@ event_rules:
         load_scenario(scenario_file)
 
 
+def test_loader_rejects_action_effects_with_unknown_move_target(tmp_path):
+    scenario_file = tmp_path / "bad_scenario.yaml"
+    scenario_file.write_text(
+        """
+scenario_id: broken
+initial_agent_state:
+  location_id: plaza
+locations:
+  - location_id: plaza
+    name: Plaza
+    description: A plaza.
+objects:
+  - object_id: cart
+    name: Cart
+    object_type: cart
+    location_id: plaza
+    summary: A paid cart.
+    action_ids: [ride]
+    actionable: true
+    action_effects:
+      ride:
+        message: Ride.
+        move_to_location_id: workshop
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="references unknown location"):
+        load_scenario(scenario_file)
+
+
 def test_loader_rejects_skill_without_frontmatter(tmp_path):
     skill_file = tmp_path / "skill.md"
     scenario_file = tmp_path / "scenario.yaml"

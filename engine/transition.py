@@ -31,6 +31,8 @@ class ActionExecution:
     message: str
     error_type: Optional[str] = None
     money_delta: int = 0
+    energy_delta: int = 0
+    inventory_delta: dict[str, int] | None = None
     payload_builder: Optional[PayloadBuilder] = None
 
 
@@ -88,8 +90,8 @@ class TransitionEngine:
             applied_cost = apply_action_costs(working_state, action.type)
             time_delta = applied_cost.time_delta
             money_delta = execution.money_delta + applied_cost.money_delta
-            energy_delta = applied_cost.energy_delta
-            inventory_delta = dict(applied_cost.inventory_delta)
+            energy_delta = execution.energy_delta + applied_cost.energy_delta
+            inventory_delta = _merge_inventory_deltas(execution.inventory_delta or {}, applied_cost.inventory_delta)
             triggered_events = apply_world_rules(working_state)
         else:
             money_delta = execution.money_delta
@@ -136,12 +138,16 @@ def _success(
     *,
     payload_builder: Optional[PayloadBuilder] = None,
     money_delta: int = 0,
+    energy_delta: int = 0,
+    inventory_delta: Optional[dict[str, int]] = None,
 ) -> ActionExecution:
     return ActionExecution(
         success=True,
         message=message,
         payload_builder=payload_builder,
         money_delta=money_delta,
+        energy_delta=energy_delta,
+        inventory_delta=dict(inventory_delta or {}),
     )
 
 
@@ -294,11 +300,42 @@ def _handle_call_action(state: WorldState, action: Action) -> ActionExecution:
             "missing_prerequisites",
             f"Action `{action_name}` on `{action.target_id}` is not available in the current world state.",
         )
+    if not _has_required_inventory(state, effect.required_inventory):
+        return _failure(
+            "missing_inventory",
+            f"Action `{action_name}` on `{action.target_id}` requires inventory items that are not available.",
+        )
+    if state.agent.money < effect.required_money:
+        return _failure(
+            "insufficient_money",
+            f"Action `{action_name}` on `{action.target_id}` requires at least {effect.required_money} money.",
+        )
+    if state.agent.money + effect.money_delta < 0:
+        return _failure(
+            "insufficient_money",
+            f"Action `{action_name}` on `{action.target_id}` would reduce money below zero.",
+        )
+    if not _can_apply_inventory_delta(state, effect.inventory_delta):
+        return _failure(
+            "insufficient_inventory",
+            f"Action `{action_name}` on `{action.target_id}` would reduce inventory below zero.",
+        )
+    if effect.move_to_location_id and effect.move_to_location_id not in state.locations:
+        return _failure(
+            "unknown_location",
+            f"Action `{action_name}` on `{action.target_id}` references unknown location `{effect.move_to_location_id}`.",
+        )
 
     world_object.visible_state.update(effect.set_visible_state)
     state.world_flags.update(effect.set_world_flags)
     if effect.money_delta:
         state.agent.money += effect.money_delta
+    if effect.energy_delta:
+        state.agent.energy = max(0, state.agent.energy + effect.energy_delta)
+    if effect.inventory_delta:
+        _apply_inventory_delta(state, effect.inventory_delta)
+    if effect.move_to_location_id:
+        state.agent.location_id = effect.move_to_location_id
     return _success(
         effect.message,
         payload_builder=lambda current_state, object_id=world_object.object_id, action_name=action_name: {
@@ -308,8 +345,13 @@ def _handle_call_action(state: WorldState, action: Action) -> ActionExecution:
             "visible_state": deepcopy(current_state.objects[object_id].visible_state),
             "world_flags": dict(current_state.world_flags),
             "money": current_state.agent.money,
+            "energy": current_state.agent.energy,
+            "inventory": dict(current_state.agent.inventory),
+            "location_id": current_state.agent.location_id,
         },
         money_delta=effect.money_delta,
+        energy_delta=effect.energy_delta,
+        inventory_delta=effect.inventory_delta,
     )
 
 
@@ -340,6 +382,35 @@ def _raw_action_payload(raw_action: Union[Action, Mapping[str, Any]]) -> dict[st
     if isinstance(raw_action, Action):
         return raw_action.model_dump()
     return dict(raw_action)
+
+
+def _has_required_inventory(state: WorldState, required_inventory: dict[str, int]) -> bool:
+    return all(state.agent.inventory.get(item_id, 0) >= required for item_id, required in required_inventory.items())
+
+
+def _can_apply_inventory_delta(state: WorldState, inventory_delta: dict[str, int]) -> bool:
+    for item_id, delta in inventory_delta.items():
+        if state.agent.inventory.get(item_id, 0) + delta < 0:
+            return False
+    return True
+
+
+def _apply_inventory_delta(state: WorldState, inventory_delta: dict[str, int]) -> None:
+    for item_id, delta in inventory_delta.items():
+        new_quantity = state.agent.inventory.get(item_id, 0) + delta
+        if new_quantity <= 0:
+            state.agent.inventory.pop(item_id, None)
+        else:
+            state.agent.inventory[item_id] = new_quantity
+
+
+def _merge_inventory_deltas(primary: dict[str, int], secondary: dict[str, int]) -> dict[str, int]:
+    merged = dict(primary)
+    for item_id, delta in secondary.items():
+        merged[item_id] = merged.get(item_id, 0) + delta
+        if merged[item_id] == 0:
+            merged.pop(item_id)
+    return merged
 
 
 ACTION_HANDLERS: dict[str, ActionHandler] = {

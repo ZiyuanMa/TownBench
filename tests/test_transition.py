@@ -189,3 +189,78 @@ def test_non_once_world_rules_only_trigger_on_state_change(minimal_world_state):
 
     assert first_result.triggered_events == ["shift_notice"]
     assert second_result.triggered_events == []
+
+
+def test_call_action_can_apply_energy_inventory_and_location_changes(minimal_world_state):
+    env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
+    env.reset()
+    env.state.objects["counter"].actionable = True
+    env.state.objects["counter"].action_ids = ["buy_ticket"]
+    env.state.objects["counter"].action_effects = {
+        "buy_ticket": ObjectActionEffect(
+            message="Bought a return ticket.",
+            required_money=6,
+            money_delta=-6,
+            energy_delta=5,
+            inventory_delta={"ticket": 1},
+            move_to_location_id="plaza",
+        )
+    }
+    env.step({"type": "move_to", "target_id": "market"})
+
+    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "buy_ticket"}})
+
+    assert result.success is True
+    assert result.money_delta == -6
+    assert result.energy_delta == 2
+    assert result.inventory_delta == {"ticket": 1}
+    assert env.state.agent.location_id == "plaza"
+    assert env.state.agent.money == 14
+    assert env.state.agent.inventory == {"ticket": 1}
+    assert result.data["location_id"] == "plaza"
+    assert result.data["inventory"] == {"ticket": 1}
+
+
+def test_call_action_rejects_when_required_inventory_is_missing(minimal_world_state):
+    env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
+    env.reset()
+    env.state.objects["counter"].actionable = True
+    env.state.objects["counter"].action_ids = ["repair_device"]
+    env.state.objects["counter"].action_effects = {
+        "repair_device": ObjectActionEffect(
+            message="Repaired device.",
+            required_inventory={"repair_kit": 1},
+            inventory_delta={"repair_kit": -1},
+            money_delta=9,
+        )
+    }
+    env.step({"type": "move_to", "target_id": "market"})
+
+    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "repair_device"}})
+
+    assert result.success is False
+    assert result.warnings == ["missing_inventory"]
+    assert env.state.agent.money == 20
+    assert env.state.agent.inventory == {}
+
+
+def test_call_action_rejects_when_money_would_drop_below_zero(minimal_world_state):
+    env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
+    env.reset()
+    env.state.agent.money = 4
+    env.state.objects["counter"].actionable = True
+    env.state.objects["counter"].action_ids = ["buy_machine"]
+    env.state.objects["counter"].action_effects = {
+        "buy_machine": ObjectActionEffect(
+            message="Bought a machine.",
+            required_money=5,
+            money_delta=-5,
+        )
+    }
+    env.step({"type": "move_to", "target_id": "market"})
+
+    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "buy_machine"}})
+
+    assert result.success is False
+    assert result.warnings == ["insufficient_money"]
+    assert env.state.agent.money == 4

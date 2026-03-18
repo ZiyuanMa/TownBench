@@ -1,0 +1,7 @@
+Station shortcuts:
+
+- Cart to market: 1 coin
+- Cart to workshop: 2 coins
+- Cart rides save walking when you are carrying goods or chasing a better route
+
+The cart is optional. It is most useful when the shortcut is worth more than the fare.

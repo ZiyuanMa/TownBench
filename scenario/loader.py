@@ -49,7 +49,7 @@ def load_scenario(path: Union[str, Path]) -> WorldState:
         for item in config.skills
     }
 
-    _validate_event_rules(config, objects)
+    _validate_event_rules(config, objects, locations)
 
     return WorldState(
         current_time=config.initial_world_state.current_time,
@@ -148,8 +148,23 @@ def _validate_location_links(locations: dict[str, Location]) -> None:
             raise ValueError(f"Location `{location.location_id}` links to unknown location(s): {links}.")
 
 
-def _validate_event_rules(config: ScenarioConfig, objects: dict[str, WorldObject]) -> None:
+def _validate_event_rules(
+    config: ScenarioConfig,
+    objects: dict[str, WorldObject],
+    locations: dict[str, Location],
+) -> None:
     known_objects = set(objects)
+    known_locations = set(locations)
+
+    for world_object in objects.values():
+        for action_name, effect in world_object.action_effects.items():
+            move_target = effect.move_to_location_id
+            if move_target and move_target not in known_locations:
+                raise ValueError(
+                    f"Object `{world_object.object_id}` action `{action_name}` references unknown location "
+                    f"`{move_target}`."
+                )
+
     for rule in config.event_rules:
         unknown_objects = sorted(set(rule.set_object_visible_state) - known_objects)
         if unknown_objects:

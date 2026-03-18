@@ -51,3 +51,27 @@ def test_trace_records_money_delta_from_object_actions(minimal_world_state):
     trace = env.get_trace()
     assert result.money_delta == 5
     assert trace[-1].money_delta == 5
+
+
+def test_trace_records_object_inventory_and_energy_deltas(minimal_world_state):
+    env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
+    env.reset()
+    env.state.objects["counter"].actionable = True
+    env.state.objects["counter"].action_ids = ["buy_supply"]
+    env.state.objects["counter"].action_effects = {
+        "buy_supply": ObjectActionEffect(
+            message="Bought one supply crate.",
+            money_delta=-3,
+            energy_delta=6,
+            inventory_delta={"supply_crate": 1},
+        )
+    }
+    env.step({"type": "move_to", "target_id": "market"})
+
+    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "buy_supply"}})
+
+    trace = env.get_trace()
+    assert result.inventory_delta == {"supply_crate": 1}
+    assert result.energy_delta == 3
+    assert trace[-1].inventory_delta == {"supply_crate": 1}
+    assert trace[-1].energy_delta == 3
