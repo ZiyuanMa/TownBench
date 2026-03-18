@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -78,7 +79,7 @@ class ScenarioObjectSource(BaseModel):
             object_type=self.object_type,
             location_id=self.location_id,
             summary=self.summary,
-            visible_state=dict(self.visible_state),
+            visible_state=deepcopy(self.visible_state),
             action_ids=list(self.action_ids),
             tags=list(self.tags),
             inspectable=self.inspectable,

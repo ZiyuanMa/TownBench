@@ -315,6 +315,56 @@ objects:
     assert state.objects["notice_board"].resource_content == "Inline notice text."
 
 
+def test_loader_deep_copies_nested_visible_state(tmp_path):
+    scenario_file = tmp_path / "scenario.yaml"
+    scenario_file.write_text(
+        """
+scenario_id: nested_visible_state
+initial_agent_state:
+  location_id: plaza
+locations:
+  - location_id: plaza
+    name: Plaza
+    description: A plaza.
+objects:
+  - object_id: board_a
+    name: Board A
+    object_type: board
+    location_id: plaza
+    summary: First board.
+    visible_state:
+      nested: &shared_state
+        counters:
+          tea: 1
+        notes:
+          - ready
+  - object_id: board_b
+    name: Board B
+    object_type: board
+    location_id: plaza
+    summary: Second board.
+    visible_state:
+      nested: *shared_state
+""".strip(),
+        encoding="utf-8",
+    )
+
+    state = load_scenario(scenario_file)
+
+    first_nested = state.objects["board_a"].visible_state["nested"]
+    second_nested = state.objects["board_b"].visible_state["nested"]
+
+    assert first_nested is not second_nested
+    assert first_nested["counters"] is not second_nested["counters"]
+    assert first_nested["notes"] is not second_nested["notes"]
+
+    first_nested["counters"]["tea"] = 9
+    first_nested["notes"].append("updated")
+
+    assert second_nested["counters"]["tea"] == 1
+    assert second_nested["notes"] == ["ready"]
+
+
 def test_loader_rejects_event_rules_with_unknown_objects(tmp_path):
     scenario_file = tmp_path / "bad_scenario.yaml"
     scenario_file.write_text(
