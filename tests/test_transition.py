@@ -126,3 +126,38 @@ def test_call_action_can_apply_money_delta_and_reports_net_step_delta(minimal_wo
     assert env.state.agent.money == 27
     assert result.data["money"] == 27
     assert env.state.objects["counter"].visible_state["last_sale"] == "snack"
+
+
+def test_invalid_action_still_counts_toward_termination(minimal_world_state):
+    state = minimal_world_state.model_copy(deep=True)
+    state.termination_config.max_steps = 1
+    env = TownBenchEnv(state)
+    env.reset()
+
+    result = env.step({"bogus": 1})
+
+    assert result.success is False
+    assert result.done is True
+    assert result.termination_reason == "max_steps_reached"
+    assert env.is_done() is True
+    assert env.get_trace()[0].error_type == "invalid_action"
+
+
+def test_non_once_world_rules_only_trigger_on_state_change(minimal_world_state):
+    env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
+    env.reset()
+    env.state.world_flags["shift_open"] = True
+    env.state.event_rules = [
+        WorldEventRule(
+            event_id="shift_notice",
+            required_world_flags={"shift_open": True},
+            set_object_visible_state={"bulletin": {"status": "open"}},
+            trigger_once=False,
+        )
+    ]
+
+    first_result = env.step({"type": "check_status"})
+    second_result = env.step({"type": "check_status"})
+
+    assert first_result.triggered_events == ["shift_notice"]
+    assert second_result.triggered_events == []

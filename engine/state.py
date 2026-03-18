@@ -89,6 +89,7 @@ class WorldState(BaseModel):
     action_costs: dict[str, ActionCost] = Field(default_factory=dict)
     event_rules: list[WorldEventRule] = Field(default_factory=list)
     termination_config: TerminationConfig = Field(default_factory=TerminationConfig)
+    active_event_ids: list[str] = Field(default_factory=list)
     triggered_event_ids: list[str] = Field(default_factory=list)
     scenario_id: str = "memory_scenario"
     seed: Optional[int] = None

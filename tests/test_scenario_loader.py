@@ -111,7 +111,10 @@ def test_completion_log_requires_brewing_and_pays_agent():
     assert paid_result.success is True
     assert paid_result.money_delta == 9
     assert env.state.agent.money == 21
-    assert paid_result.data["world_flags"]["order_logged"] is True
+    assert paid_result.data["world_flags"]["order_logged"] is False
+    assert paid_result.data["world_flags"]["tea_ready"] is False
+    assert paid_result.data["world_flags"]["payment_posted"] is True
+    assert paid_result.data["visible_state"]["last_entry"] == "payout_collected"
     assert env.state.world_flags["order_logged"] is False
     assert env.state.world_flags["tea_ready"] is False
     assert env.state.world_flags["payment_posted"] is True

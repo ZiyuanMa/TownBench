@@ -3,29 +3,19 @@ from __future__ import annotations
 import re
 from typing import Optional, Tuple
 
-from engine.state import ActionCost, TerminationConfig, WorldEventRule, WorldState
+from engine.actions import get_action_spec
+from engine.state import ActionCost, TerminationConfig, WorldState
 
 TIME_PATTERN = re.compile(r"^Day (?P<day>\d+), (?P<hour>\d{2}):(?P<minute>\d{2})$")
-
-DEFAULT_ACTION_COSTS: dict[str, ActionCost] = {
-    "move_to": ActionCost(time_delta=10, energy_delta=-2),
-    "inspect": ActionCost(time_delta=4, energy_delta=-1),
-    "open_resource": ActionCost(time_delta=3),
-    "load_skill": ActionCost(time_delta=5, energy_delta=-1),
-    "check_status": ActionCost(),
-    "write_note": ActionCost(time_delta=1),
-    "call_action": ActionCost(time_delta=8, energy_delta=-3),
-    "search": ActionCost(time_delta=2, energy_delta=-1),
-}
 
 
 def get_action_cost(state: WorldState, action_type: str) -> ActionCost:
     override = state.action_costs.get(action_type)
     if override is not None:
         return override.model_copy(deep=True)
-    default_cost = DEFAULT_ACTION_COSTS.get(action_type)
-    if default_cost is not None:
-        return default_cost.model_copy(deep=True)
+    spec = get_action_spec(action_type)
+    if spec is not None:
+        return spec.default_cost.model_copy(deep=True)
     return ActionCost()
 
 
@@ -50,11 +40,15 @@ def apply_action_costs(state: WorldState, action_type: str) -> ActionCost:
 def apply_world_rules(state: WorldState) -> list[str]:
     triggered_events: list[str] = []
     triggered_event_ids = set(state.triggered_event_ids)
+    active_event_ids = set(state.active_event_ids)
 
     for rule in state.event_rules:
+        matches = matches_world_flags(state.world_flags, rule.required_world_flags)
         if rule.trigger_once and rule.event_id in triggered_event_ids:
             continue
-        if not _matches_world_flags(state.world_flags, rule.required_world_flags):
+        if not matches:
+            continue
+        if not rule.trigger_once and rule.event_id in active_event_ids:
             continue
 
         state.world_flags.update(rule.set_world_flags)
@@ -69,6 +63,11 @@ def apply_world_rules(state: WorldState) -> list[str]:
             state.triggered_event_ids.append(rule.event_id)
             triggered_event_ids.add(rule.event_id)
 
+    state.active_event_ids = [
+        rule.event_id
+        for rule in state.event_rules
+        if matches_world_flags(state.world_flags, rule.required_world_flags)
+    ]
     return triggered_events
 
 
@@ -116,5 +115,5 @@ def parse_time_label(value: str) -> int:
     return (day - 1) * 24 * 60 + hour * 60 + minute
 
 
-def _matches_world_flags(current_flags: dict[str, bool], required_flags: dict[str, bool]) -> bool:
+def matches_world_flags(current_flags: dict[str, bool], required_flags: dict[str, bool]) -> bool:
     return all(current_flags.get(flag) is expected for flag, expected in required_flags.items())
