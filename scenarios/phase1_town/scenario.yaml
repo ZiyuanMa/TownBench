@@ -70,7 +70,7 @@ objects:
     location_id: plaza
     summary: "A board listing simple public work."
     visible_state:
-      latest_job: "Parcel run to the station pays 7 coins."
+      latest_job: "Parcel run to the station pays 5 coins."
     readable: true
     actionable: true
     resource_file: resources/job_board.txt
@@ -159,7 +159,7 @@ objects:
     location_id: market
     summary: "A buyer who pays cash for packaged tea."
     visible_state:
-      packed_tea_payout: 15
+      packed_tea_payout: 17
     actionable: true
     action_ids: ["sell_packed_tea"]
     action_effects:
@@ -167,7 +167,7 @@ objects:
         message: "You sold one packaged tea lot."
         required_inventory:
           packed_tea: 1
-        money_delta: 15
+        money_delta: 17
         inventory_delta:
           packed_tea: -1
 
@@ -210,7 +210,7 @@ objects:
     location_id: workshop
     summary: "A maintenance bench used for short contract repair jobs."
     visible_state:
-      commuter_kettle_payout: 13
+      commuter_kettle_payout: 15
     actionable: true
     action_ids: ["service_commuter_kettle"]
     action_effects:
@@ -218,7 +218,7 @@ objects:
         message: "You completed the commuter kettle repair contract."
         required_inventory:
           repair_kit: 1
-        money_delta: 13
+        money_delta: 15
         inventory_delta:
           repair_kit: -1
         set_visible_state:
@@ -231,7 +231,7 @@ objects:
     summary: "A meal counter that buys produce and sells a hot lunch."
     visible_state:
       hot_meal_price: 5
-      fruit_box_bid: 6
+      fruit_box_bid: 7
     actionable: true
     action_ids: ["buy_hot_meal", "sell_fruit_box"]
     action_effects:
@@ -244,7 +244,7 @@ objects:
         message: "You sold one fruit box to the canteen kitchen."
         required_inventory:
           fruit_box: 1
-        money_delta: 6
+        money_delta: 7
         inventory_delta:
           fruit_box: -1
 
@@ -307,7 +307,7 @@ objects:
           delivery_job_active: true
         required_inventory:
           delivery_parcel: 1
-        money_delta: 7
+        money_delta: 5
         inventory_delta:
           delivery_parcel: -1
         set_visible_state:
@@ -383,7 +383,7 @@ event_rules:
       delivery_job_active: false
     set_object_visible_state:
       job_board:
-        latest_job: "Parcel run to the station pays 7 coins."
+        latest_job: "Parcel run to the station pays 5 coins."
     trigger_once: false
 
   - event_id: delivery_active_notice

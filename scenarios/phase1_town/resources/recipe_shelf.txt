@@ -3,6 +3,6 @@ Workshop tea note:
 - Buy a tea bundle in the market for 4 coins
 - Brew it at the tea station
 - Use the packaging table only if you already own the packaging kit
-- The general buyer in the market pays 15 coins for a packaged tea lot
+- The general buyer in the market pays 17 coins for a packaged tea lot
 
 This is slower than public work, but the setup pays back if repeated.
