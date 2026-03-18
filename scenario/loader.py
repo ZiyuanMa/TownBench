@@ -20,7 +20,7 @@ def load_scenario(path: Union[str, Path]) -> WorldState:
     _ensure_unique_ids([item.event_id for item in config.event_rules], "event rule")
 
     locations = {
-        item.location_id: item.model_copy(update={"object_ids": []}, deep=True)
+        item.location_id: item.to_location()
         for item in config.locations
     }
 
@@ -28,7 +28,6 @@ def load_scenario(path: Union[str, Path]) -> WorldState:
         raise ValueError(
             f"Initial agent location `{config.initial_agent_state.location_id}` does not exist in locations."
         )
-    _validate_location_object_ids(config)
     _validate_location_links(locations)
 
     objects: dict[str, WorldObject] = {}
@@ -40,16 +39,8 @@ def load_scenario(path: Union[str, Path]) -> WorldState:
                 f"Object `{item.object_id}` has action_effects that are not exposed in action_ids."
             )
 
-        resource_content = item.resource_content
-        if item.resource_file:
-            resource_content = _read_text(base_dir / item.resource_file)
-
-        objects[item.object_id] = WorldObject.model_validate(
-            item.model_dump(exclude={"resource_file"}, round_trip=True)
-            | {
-                "resource_content": resource_content,
-                "actionable": item.actionable or bool(item.action_effects),
-            }
+        objects[item.object_id] = item.to_world_object(
+            resource_content=_resolve_resource_content(item, base_dir=base_dir)
         )
         locations[item.location_id].object_ids.append(item.object_id)
 
@@ -79,6 +70,12 @@ def load_scenario(path: Union[str, Path]) -> WorldState:
 
 def _read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8").strip()
+
+
+def _resolve_resource_content(item, *, base_dir: Path) -> str | None:
+    if item.resource_file:
+        return _read_text(base_dir / item.resource_file)
+    return item.resource_content
 
 
 def _load_skill(path: Path, skill_id: str) -> Skill:
@@ -149,14 +146,6 @@ def _validate_location_links(locations: dict[str, Location]) -> None:
         if unknown_links:
             links = ", ".join(unknown_links)
             raise ValueError(f"Location `{location.location_id}` links to unknown location(s): {links}.")
-
-
-def _validate_location_object_ids(config: ScenarioConfig) -> None:
-    for location in config.locations:
-        if "object_ids" in location.model_fields_set:
-            raise ValueError(
-                f"Location `{location.location_id}` must not declare `object_ids`; object placement is derived from objects."
-            )
 
 
 def _validate_event_rules(config: ScenarioConfig, objects: dict[str, WorldObject]) -> None:

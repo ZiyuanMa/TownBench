@@ -287,6 +287,34 @@ objects:
         load_scenario(scenario_file)
 
 
+def test_loader_preserves_inline_resource_content(tmp_path):
+    scenario_file = tmp_path / "scenario.yaml"
+    scenario_file.write_text(
+        """
+scenario_id: inline_resource
+initial_agent_state:
+  location_id: plaza
+locations:
+  - location_id: plaza
+    name: Plaza
+    description: A plaza.
+objects:
+  - object_id: notice_board
+    name: Notice Board
+    object_type: board
+    location_id: plaza
+    summary: A board.
+    readable: true
+    resource_content: Inline notice text.
+""".strip(),
+        encoding="utf-8",
+    )
+
+    state = load_scenario(scenario_file)
+
+    assert state.objects["notice_board"].resource_content == "Inline notice text."
+
+
 def test_loader_rejects_event_rules_with_unknown_objects(tmp_path):
     scenario_file = tmp_path / "bad_scenario.yaml"
     scenario_file.write_text(
