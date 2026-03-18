@@ -11,6 +11,25 @@ def test_observation_only_shows_current_location_objects(minimal_world_state):
     assert "counter" not in visible_ids
 
 
+def test_observation_visible_state_is_detached_from_runtime_state(minimal_world_state):
+    state = minimal_world_state.model_copy(deep=True)
+    state.objects["bulletin"].visible_state = {
+        "nested": {
+            "status": "open",
+            "tags": ["public"],
+        }
+    }
+    env = TownBenchEnv(state)
+
+    observation = env.reset()
+    nested_state = observation.visible_objects[0].visible_state["nested"]
+    nested_state["status"] = "closed"
+    nested_state["tags"].append("changed")
+
+    assert env.state.objects["bulletin"].visible_state["nested"]["status"] == "open"
+    assert env.state.objects["bulletin"].visible_state["nested"]["tags"] == ["public"]
+
+
 def test_inspect_requires_current_location_access(minimal_world_state):
     env = TownBenchEnv(minimal_world_state)
     env.reset()

@@ -128,6 +128,34 @@ def test_call_action_can_apply_money_delta_and_reports_net_step_delta(minimal_wo
     assert env.state.objects["counter"].visible_state["last_sale"] == "snack"
 
 
+def test_step_payload_visible_state_is_detached_from_runtime_state(minimal_world_state):
+    env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
+    env.reset()
+    env.state.objects["counter"].actionable = True
+    env.state.objects["counter"].action_ids = ["sell_snack"]
+    env.state.objects["counter"].action_effects = {
+        "sell_snack": ObjectActionEffect(
+            message="Sold a snack.",
+            set_visible_state={"sale": {"item": "snack", "history": ["snack"]}},
+        )
+    }
+    env.step({"type": "move_to", "target_id": "market"})
+
+    result = env.step(
+        {
+            "type": "call_action",
+            "target_id": "counter",
+            "args": {"action": "sell_snack"},
+        }
+    )
+    payload_state = result.data["visible_state"]["sale"]
+    payload_state["item"] = "tampered"
+    payload_state["history"].append("tampered")
+
+    assert env.state.objects["counter"].visible_state["sale"]["item"] == "snack"
+    assert env.state.objects["counter"].visible_state["sale"]["history"] == ["snack"]
+
+
 def test_invalid_action_still_counts_toward_termination(minimal_world_state):
     state = minimal_world_state.model_copy(deep=True)
     state.termination_config.max_steps = 1

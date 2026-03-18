@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -74,7 +75,7 @@ def _project_object(world_object: WorldObject) -> ObjectObservation:
         name=world_object.name,
         object_type=world_object.object_type,
         summary=world_object.summary,
-        visible_state=dict(world_object.visible_state),
+        visible_state=deepcopy(world_object.visible_state),
         action_ids=list(world_object.action_ids),
     )
 

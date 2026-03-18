@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, Callable, Optional, Union
 
@@ -304,7 +305,7 @@ def _handle_call_action(state: WorldState, action: Action) -> ActionExecution:
             "kind": "action",
             "object_id": object_id,
             "action": action_name,
-            "visible_state": dict(current_state.objects[object_id].visible_state),
+            "visible_state": deepcopy(current_state.objects[object_id].visible_state),
             "world_flags": dict(current_state.world_flags),
             "money": current_state.agent.money,
         },
@@ -318,7 +319,7 @@ def _serialize_object(world_object: WorldObject) -> dict[str, Any]:
         "name": world_object.name,
         "object_type": world_object.object_type,
         "summary": world_object.summary,
-        "visible_state": dict(world_object.visible_state),
+        "visible_state": deepcopy(world_object.visible_state),
         "action_ids": list(world_object.action_ids),
     }
 
