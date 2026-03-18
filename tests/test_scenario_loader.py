@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from runtime.env import TownBenchEnv
 from scenario.loader import load_scenario
@@ -284,6 +285,58 @@ objects:
     )
 
     with pytest.raises(ValueError, match="action_effects that are not exposed"):
+        load_scenario(scenario_file)
+
+
+def test_loader_rejects_unknown_initial_agent_fields(tmp_path):
+    scenario_file = tmp_path / "bad_scenario.yaml"
+    scenario_file.write_text(
+        """
+scenario_id: broken
+initial_agent_state:
+  location_id: plaza
+  bonus_moves: 2
+locations:
+  - location_id: plaza
+    name: Plaza
+    description: A plaza.
+objects: []
+skills: []
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        load_scenario(scenario_file)
+
+
+def test_loader_rejects_conflicting_resource_sources(tmp_path):
+    resource_file = tmp_path / "notice.txt"
+    resource_file.write_text("File notice.", encoding="utf-8")
+    scenario_file = tmp_path / "bad_scenario.yaml"
+    scenario_file.write_text(
+        f"""
+scenario_id: broken
+initial_agent_state:
+  location_id: plaza
+locations:
+  - location_id: plaza
+    name: Plaza
+    description: A plaza.
+objects:
+  - object_id: notice_board
+    name: Notice Board
+    object_type: board
+    location_id: plaza
+    summary: A board.
+    readable: true
+    resource_content: Inline text.
+    resource_file: {resource_file.name}
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValidationError, match="must define only one of `resource_content` or `resource_file`"):
         load_scenario(scenario_file)
 
 

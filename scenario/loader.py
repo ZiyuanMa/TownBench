@@ -6,63 +6,85 @@ from typing import Union
 import yaml
 
 from engine.state import Location, Skill, WorldObject, WorldState
-from scenario.schema import ScenarioConfig
+from scenario.schema import ScenarioConfig, ScenarioObjectSource
 
 
 def load_scenario(path: Union[str, Path]) -> WorldState:
     scenario_path = Path(path).resolve()
-    config = ScenarioConfig.model_validate(yaml.safe_load(scenario_path.read_text(encoding="utf-8")))
+    config = _parse_config(scenario_path)
     base_dir = scenario_path.parent
 
+    _validate_unique_ids(config)
+    locations = _build_locations(config)
+    _validate_location_references(config, locations)
+    objects = _build_objects(config, locations=locations, base_dir=base_dir)
+    skills = _build_skills(config, base_dir=base_dir)
+    _validate_event_rules(config, objects=objects, locations=locations)
+    return _build_world_state(config, locations=locations, objects=objects, skills=skills)
+
+
+def _parse_config(scenario_path: Path) -> ScenarioConfig:
+    return ScenarioConfig.model_validate(yaml.safe_load(scenario_path.read_text(encoding="utf-8")))
+
+
+def _validate_unique_ids(config: ScenarioConfig) -> None:
     _ensure_unique_ids([item.location_id for item in config.locations], "location")
     _ensure_unique_ids([item.object_id for item in config.objects], "object")
     _ensure_unique_ids([item.skill_id for item in config.skills], "skill")
     _ensure_unique_ids([item.event_id for item in config.event_rules], "event rule")
 
-    locations = {
-        item.location_id: item.to_location()
-        for item in config.locations
-    }
 
+def _build_locations(config: ScenarioConfig) -> dict[str, Location]:
+    return {item.location_id: item.to_location() for item in config.locations}
+
+
+def _validate_location_references(config: ScenarioConfig, locations: dict[str, Location]) -> None:
     if config.initial_agent_state.location_id not in locations:
         raise ValueError(
             f"Initial agent location `{config.initial_agent_state.location_id}` does not exist in locations."
         )
     _validate_location_links(locations)
 
+
+def _build_objects(
+    config: ScenarioConfig,
+    *,
+    locations: dict[str, Location],
+    base_dir: Path,
+) -> dict[str, WorldObject]:
     objects: dict[str, WorldObject] = {}
     for item in config.objects:
-        if item.location_id not in locations:
-            raise ValueError(f"Object `{item.object_id}` references unknown location `{item.location_id}`.")
-        if set(item.action_effects) - set(item.action_ids):
-            raise ValueError(
-                f"Object `{item.object_id}` has action_effects that are not exposed in action_ids."
-            )
-
+        _validate_object_source(item, locations=locations)
         objects[item.object_id] = item.to_world_object(
             resource_content=_resolve_resource_content(item, base_dir=base_dir)
         )
         locations[item.location_id].object_ids.append(item.object_id)
+    return objects
 
-    skills = {
-        item.skill_id: _load_skill(base_dir / item.file, item.skill_id)
-        for item in config.skills
-    }
 
-    _validate_event_rules(config, objects, locations)
+def _build_skills(config: ScenarioConfig, *, base_dir: Path) -> dict[str, Skill]:
+    return {item.skill_id: _load_skill(base_dir / item.file, item.skill_id) for item in config.skills}
 
+
+def _build_world_state(
+    config: ScenarioConfig,
+    *,
+    locations: dict[str, Location],
+    objects: dict[str, WorldObject],
+    skills: dict[str, Skill],
+) -> WorldState:
     return WorldState(
         current_time=config.initial_world_state.current_time,
-        agent=config.initial_agent_state.model_copy(deep=True),
+        agent=config.initial_agent_state.to_agent_state(),
         locations=locations,
         objects=objects,
         skills=skills,
         opening_briefing=config.opening_briefing,
         public_rules=list(config.public_rules),
         world_flags=dict(config.initial_world_state.world_flags),
-        action_costs={action_type: cost.model_copy(deep=True) for action_type, cost in config.action_costs.items()},
-        event_rules=[rule.model_copy(deep=True) for rule in config.event_rules],
-        termination_config=config.termination_config.model_copy(deep=True),
+        action_costs={action_type: cost.to_action_cost() for action_type, cost in config.action_costs.items()},
+        event_rules=[rule.to_event_rule() for rule in config.event_rules],
+        termination_config=config.termination_config.to_termination_config(),
         scenario_id=config.scenario_id,
         seed=config.seed,
     )
@@ -72,7 +94,7 @@ def _read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8").strip()
 
 
-def _resolve_resource_content(item, *, base_dir: Path) -> str | None:
+def _resolve_resource_content(item: ScenarioObjectSource, *, base_dir: Path) -> str | None:
     if item.resource_file:
         return _read_text(base_dir / item.resource_file)
     return item.resource_content
@@ -148,8 +170,18 @@ def _validate_location_links(locations: dict[str, Location]) -> None:
             raise ValueError(f"Location `{location.location_id}` links to unknown location(s): {links}.")
 
 
+def _validate_object_source(item: ScenarioObjectSource, *, locations: dict[str, Location]) -> None:
+    if item.location_id not in locations:
+        raise ValueError(f"Object `{item.object_id}` references unknown location `{item.location_id}`.")
+    if set(item.action_effects) - set(item.action_ids):
+        raise ValueError(
+            f"Object `{item.object_id}` has action_effects that are not exposed in action_ids."
+        )
+
+
 def _validate_event_rules(
     config: ScenarioConfig,
+    *,
     objects: dict[str, WorldObject],
     locations: dict[str, Location],
 ) -> None:
