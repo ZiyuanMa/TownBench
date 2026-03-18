@@ -1,17 +1,16 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from copy import deepcopy
 from dataclasses import dataclass
-from typing import Any, Callable, Optional, Union
+from typing import Any, Union
 
 from pydantic import ValidationError
 
-from engine.actions import Action, normalize_action
+from engine.actions import Action, ActionExecution, apply_action_costs, get_action_spec, normalize_action
 from engine.observation import project_observation, summarize_observation
 from engine.results import StepResult
-from engine.rules import apply_action_costs, apply_world_rules, evaluate_termination, matches_world_flags
-from engine.state import WorldObject, WorldState
+from engine.rules import apply_world_rules, evaluate_termination, merge_inventory_deltas
+from engine.state import WorldState
 from engine.trace import TraceEntry
 
 
@@ -20,23 +19,6 @@ class TransitionOutcome:
     state: WorldState
     result: StepResult
     trace_entry: TraceEntry
-
-
-PayloadBuilder = Callable[[WorldState], dict[str, Any]]
-
-
-@dataclass
-class ActionExecution:
-    success: bool
-    message: str
-    error_type: Optional[str] = None
-    money_delta: int = 0
-    energy_delta: int = 0
-    inventory_delta: dict[str, int] | None = None
-    payload_builder: Optional[PayloadBuilder] = None
-
-
-ActionHandler = Callable[[WorldState, Action], ActionExecution]
 
 
 class TransitionEngine:
@@ -52,374 +34,124 @@ class TransitionEngine:
         try:
             action = normalize_action(raw_action)
         except ValidationError as exc:
-            done, termination_reason = evaluate_termination(working_state, step_id=step_id)
-            observation = project_observation(working_state)
-            result = StepResult(
-                success=False,
-                observation=observation,
-                message="Invalid action payload.",
-                done=done,
-                termination_reason=termination_reason,
-                warnings=[str(exc)],
-            )
-            trace_entry = TraceEntry(
+            return _build_invalid_action_outcome(
+                state=working_state,
+                raw_action_payload=raw_action_payload,
                 step_id=step_id,
-                raw_action=raw_action_payload,
-                normalized_action={},
-                success=False,
-                error_type="invalid_action",
-                message=result.message,
-                observation_summary=summarize_observation(observation),
-                done=result.done,
-                termination_reason=result.termination_reason,
+                warning=str(exc),
             )
-            return TransitionOutcome(state=working_state, result=result, trace_entry=trace_entry)
 
-        time_delta = 0
-        money_delta = 0
-        energy_delta = 0
-        inventory_delta: dict[str, int] = {}
-        triggered_events: list[str] = []
-        handler = ACTION_HANDLERS.get(action.type)
-        if handler is None:
-            execution = _failure("not_implemented", f"Action `{action.type}` is not implemented.")
-        else:
-            execution = handler(working_state, action)
-
-        if execution.success:
-            applied_cost = apply_action_costs(working_state, action.type)
-            time_delta = applied_cost.time_delta
-            money_delta = execution.money_delta + applied_cost.money_delta
-            energy_delta = execution.energy_delta + applied_cost.energy_delta
-            inventory_delta = _merge_inventory_deltas(execution.inventory_delta or {}, applied_cost.inventory_delta)
-            triggered_events = apply_world_rules(working_state)
-        else:
-            money_delta = execution.money_delta
-
-        done, termination_reason = evaluate_termination(working_state, step_id=step_id)
-        payload = execution.payload_builder(working_state) if execution.success and execution.payload_builder else {}
-
-        observation = project_observation(working_state)
-        result = StepResult(
-            success=execution.success,
-            observation=observation,
-            message=execution.message,
-            time_delta=time_delta,
-            money_delta=money_delta,
-            energy_delta=energy_delta,
-            inventory_delta=inventory_delta,
-            triggered_events=triggered_events,
-            done=done,
-            termination_reason=termination_reason,
-            data=payload,
-            warnings=[] if execution.success else [execution.error_type or "action_failed"],
-        )
-        trace_entry = TraceEntry(
+        execution = self._execute_action(working_state, action)
+        result, trace_entry = _build_step_artifacts(
+            state=working_state,
+            action=action,
+            execution=execution,
+            raw_action_payload=raw_action_payload,
             step_id=step_id,
-            raw_action=raw_action_payload,
-            normalized_action=action.model_dump(),
-            success=execution.success,
-            error_type=execution.error_type,
-            message=execution.message,
-            time_delta=result.time_delta,
-            money_delta=result.money_delta,
-            energy_delta=result.energy_delta,
-            inventory_delta=dict(result.inventory_delta),
-            triggered_events=list(result.triggered_events),
-            observation_summary=summarize_observation(observation),
-            done=result.done,
-            termination_reason=result.termination_reason,
         )
         return TransitionOutcome(state=working_state, result=result, trace_entry=trace_entry)
 
+    def _execute_action(self, state: WorldState, action: Action) -> ActionExecution:
+        spec = get_action_spec(action.type)
+        if spec is None or spec.handler is None:
+            return ActionExecution(
+                success=False,
+                message=f"Action `{action.type}` is not implemented.",
+                error_type="not_implemented",
+            )
+        return spec.handler(state, action)
 
-def _success(
-    message: str,
+
+def _build_invalid_action_outcome(
     *,
-    payload_builder: Optional[PayloadBuilder] = None,
-    money_delta: int = 0,
-    energy_delta: int = 0,
-    inventory_delta: Optional[dict[str, int]] = None,
-) -> ActionExecution:
-    return ActionExecution(
-        success=True,
-        message=message,
-        payload_builder=payload_builder,
+    state: WorldState,
+    raw_action_payload: dict[str, Any],
+    step_id: int,
+    warning: str,
+) -> TransitionOutcome:
+    done, termination_reason = evaluate_termination(state, step_id=step_id)
+    observation = project_observation(state)
+    result = StepResult(
+        success=False,
+        observation=observation,
+        message="Invalid action payload.",
+        done=done,
+        termination_reason=termination_reason,
+        warnings=[warning],
+    )
+    trace_entry = TraceEntry(
+        step_id=step_id,
+        raw_action=raw_action_payload,
+        normalized_action={},
+        success=False,
+        error_type="invalid_action",
+        message=result.message,
+        observation_summary=summarize_observation(observation),
+        done=result.done,
+        termination_reason=result.termination_reason,
+    )
+    return TransitionOutcome(state=state, result=result, trace_entry=trace_entry)
+
+
+def _build_step_artifacts(
+    *,
+    state: WorldState,
+    action: Action,
+    execution: ActionExecution,
+    raw_action_payload: dict[str, Any],
+    step_id: int,
+) -> tuple[StepResult, TraceEntry]:
+    time_delta = 0
+    money_delta = execution.money_delta
+    energy_delta = execution.energy_delta
+    inventory_delta = dict(execution.inventory_delta or {})
+    triggered_events: list[str] = []
+
+    if execution.success:
+        applied_cost = apply_action_costs(state, action.type)
+        time_delta = applied_cost.time_delta
+        money_delta += applied_cost.money_delta
+        energy_delta += applied_cost.energy_delta
+        inventory_delta = merge_inventory_deltas(inventory_delta, applied_cost.inventory_delta)
+        triggered_events = apply_world_rules(state)
+
+    done, termination_reason = evaluate_termination(state, step_id=step_id)
+    payload = execution.payload_builder(state) if execution.success and execution.payload_builder else {}
+    observation = project_observation(state)
+    result = StepResult(
+        success=execution.success,
+        observation=observation,
+        message=execution.message,
+        time_delta=time_delta,
         money_delta=money_delta,
         energy_delta=energy_delta,
-        inventory_delta=dict(inventory_delta or {}),
+        inventory_delta=inventory_delta,
+        triggered_events=triggered_events,
+        done=done,
+        termination_reason=termination_reason,
+        data=payload,
+        warnings=[] if execution.success else [execution.error_type or "action_failed"],
     )
-
-
-def _failure(error_type: str, message: str) -> ActionExecution:
-    return ActionExecution(success=False, message=message, error_type=error_type)
-
-
-def _handle_check_status(state: WorldState, action: Action) -> ActionExecution:
-    del action
-    return _success(
-        "Status checked.",
-        payload_builder=lambda current_state: {"agent_status": _serialize_agent_status(current_state)},
+    trace_entry = TraceEntry(
+        step_id=step_id,
+        raw_action=raw_action_payload,
+        normalized_action=action.model_dump(),
+        success=execution.success,
+        error_type=execution.error_type,
+        message=execution.message,
+        time_delta=result.time_delta,
+        money_delta=result.money_delta,
+        energy_delta=result.energy_delta,
+        inventory_delta=dict(result.inventory_delta),
+        triggered_events=list(result.triggered_events),
+        observation_summary=summarize_observation(observation),
+        done=result.done,
+        termination_reason=result.termination_reason,
     )
-
-
-def _handle_move_to(state: WorldState, action: Action) -> ActionExecution:
-    if not action.target_id:
-        return _failure("missing_target", "move_to requires a target_id.")
-
-    current_location = state.locations[state.agent.location_id]
-    if action.target_id not in state.locations:
-        return _failure("unknown_location", f"Unknown location `{action.target_id}`.")
-    if action.target_id not in current_location.links:
-        return _failure("unreachable_location", f"Location `{action.target_id}` is not reachable.")
-
-    state.agent.location_id = action.target_id
-    target_location = state.locations[action.target_id]
-    return _success(f"Moved to `{target_location.name}`.")
-
-
-def _handle_inspect(state: WorldState, action: Action) -> ActionExecution:
-    if not action.target_id:
-        return _failure("missing_target", "inspect requires a target_id.")
-
-    current_location = state.locations[state.agent.location_id]
-    if action.target_id == current_location.location_id:
-        return _success(
-            f"Inspected location `{current_location.name}`.",
-            payload_builder=lambda current_state, location_id=current_location.location_id: {
-                "kind": "location",
-                "location": current_state.locations[location_id].model_dump(),
-            },
-        )
-
-    world_object = state.objects.get(action.target_id)
-    if world_object is None:
-        return _failure("unknown_target", f"Unknown inspect target `{action.target_id}`.")
-    if world_object.location_id != current_location.location_id:
-        return _failure("not_accessible", f"Target `{action.target_id}` is not in the current location.")
-    if not world_object.inspectable:
-        return _failure("not_inspectable", f"Target `{action.target_id}` cannot be inspected.")
-
-    return _success(
-        f"Inspected object `{world_object.name}`.",
-        payload_builder=lambda current_state, object_id=world_object.object_id: {
-            "kind": "object",
-            "object": _serialize_object(current_state.objects[object_id]),
-        },
-    )
-
-
-def _handle_write_note(state: WorldState, action: Action) -> ActionExecution:
-    text = str(action.args.get("text", "")).strip()
-    if not text:
-        return _failure("missing_text", "write_note requires non-empty `args.text`.")
-
-    state.agent.notes.append(text)
-    return _success("Note saved.")
-
-
-def _handle_search(state: WorldState, action: Action) -> ActionExecution:
-    del state, action
-    return _failure("disabled_action", "search is intentionally disabled in the current milestone.")
-
-
-def _handle_open_resource(state: WorldState, action: Action) -> ActionExecution:
-    if not action.target_id:
-        return _failure("missing_target", "open_resource requires a target_id.")
-
-    current_location = state.locations[state.agent.location_id]
-    world_object = state.objects.get(action.target_id)
-    if world_object is None:
-        return _failure("unknown_target", f"Unknown resource target `{action.target_id}`.")
-    if world_object.location_id != current_location.location_id:
-        return _failure("not_accessible", f"Target `{action.target_id}` is not in the current location.")
-    if not world_object.readable or not world_object.resource_content:
-        return _failure("not_readable", f"Target `{action.target_id}` is not a readable resource.")
-
-    return _success(
-        f"Opened resource `{world_object.name}`.",
-        payload_builder=lambda current_state, object_id=world_object.object_id: {
-            "kind": "resource",
-            "object_id": object_id,
-            "title": current_state.objects[object_id].name,
-            "content": current_state.objects[object_id].resource_content,
-        },
-    )
-
-
-def _handle_load_skill(state: WorldState, action: Action) -> ActionExecution:
-    if not action.target_id:
-        return _failure("missing_target", "load_skill requires a target_id.")
-
-    skill = state.skills.get(action.target_id)
-    if skill is None:
-        return _failure("unknown_skill", f"Unknown skill `{action.target_id}`.")
-
-    return _success(
-        f"Loaded skill `{skill.name}`.",
-        payload_builder=lambda current_state, skill_id=skill.skill_id: {
-            "kind": "skill",
-            "skill_id": skill_id,
-            "name": current_state.skills[skill_id].name,
-            "description": current_state.skills[skill_id].description,
-            "content": current_state.skills[skill_id].content,
-        },
-    )
-
-
-def _handle_call_action(state: WorldState, action: Action) -> ActionExecution:
-    if not action.target_id:
-        return _failure("missing_target", "call_action requires a target_id.")
-
-    action_name = str(action.args.get("action", "")).strip()
-    if not action_name:
-        return _failure("missing_action_name", "call_action requires `args.action`.")
-
-    current_location = state.locations[state.agent.location_id]
-    world_object = state.objects.get(action.target_id)
-    if world_object is None:
-        return _failure("unknown_target", f"Unknown action target `{action.target_id}`.")
-    if world_object.location_id != current_location.location_id:
-        return _failure("not_accessible", f"Target `{action.target_id}` is not in the current location.")
-    if not world_object.actionable:
-        return _failure("not_actionable", f"Target `{action.target_id}` does not support actions.")
-    if action_name not in world_object.action_ids:
-        return _failure(
-            "action_not_exposed",
-            f"Action `{action_name}` is not exposed on `{action.target_id}` in the current location.",
-        )
-
-    effect = world_object.action_effects.get(action_name)
-    if effect is None:
-        return _failure(
-            "unknown_object_action",
-            f"Target `{action.target_id}` does not support `{action_name}`.",
-        )
-    if not matches_world_flags(state.world_flags, effect.required_world_flags):
-        return _failure(
-            "missing_prerequisites",
-            f"Action `{action_name}` on `{action.target_id}` is not available in the current world state.",
-        )
-    if not _has_required_inventory(state, effect.required_inventory):
-        return _failure(
-            "missing_inventory",
-            f"Action `{action_name}` on `{action.target_id}` requires inventory items that are not available.",
-        )
-    if state.agent.money < effect.required_money:
-        return _failure(
-            "insufficient_money",
-            f"Action `{action_name}` on `{action.target_id}` requires at least {effect.required_money} money.",
-        )
-    if state.agent.money + effect.money_delta < 0:
-        return _failure(
-            "insufficient_money",
-            f"Action `{action_name}` on `{action.target_id}` would reduce money below zero.",
-        )
-    if not _can_apply_inventory_delta(state, effect.inventory_delta):
-        return _failure(
-            "insufficient_inventory",
-            f"Action `{action_name}` on `{action.target_id}` would reduce inventory below zero.",
-        )
-    if effect.move_to_location_id and effect.move_to_location_id not in state.locations:
-        return _failure(
-            "unknown_location",
-            f"Action `{action_name}` on `{action.target_id}` references unknown location `{effect.move_to_location_id}`.",
-        )
-
-    world_object.visible_state.update(effect.set_visible_state)
-    state.world_flags.update(effect.set_world_flags)
-    if effect.money_delta:
-        state.agent.money += effect.money_delta
-    if effect.energy_delta:
-        state.agent.energy = max(0, state.agent.energy + effect.energy_delta)
-    if effect.inventory_delta:
-        _apply_inventory_delta(state, effect.inventory_delta)
-    if effect.move_to_location_id:
-        state.agent.location_id = effect.move_to_location_id
-    return _success(
-        effect.message,
-        payload_builder=lambda current_state, object_id=world_object.object_id, action_name=action_name: {
-            "kind": "action",
-            "object_id": object_id,
-            "action": action_name,
-            "visible_state": deepcopy(current_state.objects[object_id].visible_state),
-            "world_flags": dict(current_state.world_flags),
-            "money": current_state.agent.money,
-            "energy": current_state.agent.energy,
-            "inventory": dict(current_state.agent.inventory),
-            "location_id": current_state.agent.location_id,
-        },
-        money_delta=effect.money_delta,
-        energy_delta=effect.energy_delta,
-        inventory_delta=effect.inventory_delta,
-    )
-
-
-def _serialize_object(world_object: WorldObject) -> dict[str, Any]:
-    return {
-        "object_id": world_object.object_id,
-        "name": world_object.name,
-        "object_type": world_object.object_type,
-        "summary": world_object.summary,
-        "visible_state": deepcopy(world_object.visible_state),
-        "action_ids": list(world_object.action_ids),
-    }
-
-
-def _serialize_agent_status(state: WorldState) -> dict[str, Any]:
-    return {
-        "current_time": state.current_time,
-        "location_id": state.agent.location_id,
-        "money": state.agent.money,
-        "energy": state.agent.energy,
-        "inventory": dict(state.agent.inventory),
-        "notes": list(state.agent.notes),
-        "status_effects": list(state.agent.status_effects),
-    }
+    return result, trace_entry
 
 
 def _raw_action_payload(raw_action: Union[Action, Mapping[str, Any]]) -> dict[str, Any]:
     if isinstance(raw_action, Action):
         return raw_action.model_dump()
     return dict(raw_action)
-
-
-def _has_required_inventory(state: WorldState, required_inventory: dict[str, int]) -> bool:
-    return all(state.agent.inventory.get(item_id, 0) >= required for item_id, required in required_inventory.items())
-
-
-def _can_apply_inventory_delta(state: WorldState, inventory_delta: dict[str, int]) -> bool:
-    for item_id, delta in inventory_delta.items():
-        if state.agent.inventory.get(item_id, 0) + delta < 0:
-            return False
-    return True
-
-
-def _apply_inventory_delta(state: WorldState, inventory_delta: dict[str, int]) -> None:
-    for item_id, delta in inventory_delta.items():
-        new_quantity = state.agent.inventory.get(item_id, 0) + delta
-        if new_quantity <= 0:
-            state.agent.inventory.pop(item_id, None)
-        else:
-            state.agent.inventory[item_id] = new_quantity
-
-
-def _merge_inventory_deltas(primary: dict[str, int], secondary: dict[str, int]) -> dict[str, int]:
-    merged = dict(primary)
-    for item_id, delta in secondary.items():
-        merged[item_id] = merged.get(item_id, 0) + delta
-        if merged[item_id] == 0:
-            merged.pop(item_id)
-    return merged
-
-
-ACTION_HANDLERS: dict[str, ActionHandler] = {
-    "check_status": _handle_check_status,
-    "move_to": _handle_move_to,
-    "inspect": _handle_inspect,
-    "search": _handle_search,
-    "open_resource": _handle_open_resource,
-    "load_skill": _handle_load_skill,
-    "write_note": _handle_write_note,
-    "call_action": _handle_call_action,
-}

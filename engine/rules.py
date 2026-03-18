@@ -3,38 +3,31 @@ from __future__ import annotations
 import re
 from typing import Optional, Tuple
 
-from engine.actions import get_action_spec
 from engine.state import ActionCost, TerminationConfig, WorldState
 
 TIME_PATTERN = re.compile(r"^Day (?P<day>\d+), (?P<hour>\d{2}):(?P<minute>\d{2})$")
 
 
-def get_action_cost(state: WorldState, action_type: str) -> ActionCost:
-    override = state.action_costs.get(action_type)
-    if override is not None:
-        return override.model_copy(deep=True)
-    spec = get_action_spec(action_type)
-    if spec is not None:
-        return spec.default_cost.model_copy(deep=True)
-    return ActionCost()
+def apply_state_delta(state: WorldState, delta: ActionCost) -> ActionCost:
+    applied = delta.model_copy(deep=True)
+    if applied.time_delta:
+        state.current_time = advance_time_label(state.current_time, applied.time_delta)
+    if applied.money_delta:
+        state.agent.money += applied.money_delta
+    if applied.energy_delta:
+        state.agent.energy = max(0, state.agent.energy + applied.energy_delta)
+    if applied.inventory_delta:
+        _apply_inventory_delta(state, applied.inventory_delta)
+    return applied
 
 
-def apply_action_costs(state: WorldState, action_type: str) -> ActionCost:
-    cost = get_action_cost(state, action_type)
-    if cost.time_delta:
-        state.current_time = advance_time_label(state.current_time, cost.time_delta)
-    if cost.money_delta:
-        state.agent.money += cost.money_delta
-    if cost.energy_delta:
-        state.agent.energy = max(0, state.agent.energy + cost.energy_delta)
-    if cost.inventory_delta:
-        for item_id, delta in cost.inventory_delta.items():
-            new_quantity = state.agent.inventory.get(item_id, 0) + delta
-            if new_quantity <= 0:
-                state.agent.inventory.pop(item_id, None)
-            else:
-                state.agent.inventory[item_id] = new_quantity
-    return cost
+def merge_inventory_deltas(primary: dict[str, int], secondary: dict[str, int]) -> dict[str, int]:
+    merged = dict(primary)
+    for item_id, delta in secondary.items():
+        merged[item_id] = merged.get(item_id, 0) + delta
+        if merged[item_id] == 0:
+            merged.pop(item_id)
+    return merged
 
 
 def apply_world_rules(state: WorldState) -> list[str]:
@@ -117,3 +110,12 @@ def parse_time_label(value: str) -> int:
 
 def matches_world_flags(current_flags: dict[str, bool], required_flags: dict[str, bool]) -> bool:
     return all(current_flags.get(flag) is expected for flag, expected in required_flags.items())
+
+
+def _apply_inventory_delta(state: WorldState, inventory_delta: dict[str, int]) -> None:
+    for item_id, delta in inventory_delta.items():
+        new_quantity = state.agent.inventory.get(item_id, 0) + delta
+        if new_quantity <= 0:
+            state.agent.inventory.pop(item_id, None)
+        else:
+            state.agent.inventory[item_id] = new_quantity
