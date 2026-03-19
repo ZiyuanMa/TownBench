@@ -38,6 +38,73 @@ def test_write_note_appends_note_and_status_reflects_it(minimal_world_state):
     assert status_result.data["agent_status"]["notes"] == ["buy apples"]
 
 
+def test_check_status_returns_structured_agent_status_payload(minimal_world_state):
+    env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
+    env.reset()
+    env.state.agent.inventory = {"apple": 2}
+    env.state.agent.status_effects = ["focused"]
+
+    result = env.step({"type": "check_status"})
+
+    assert result.success is True
+    assert result.data["agent_status"] == {
+        "current_time": "Day 1, 08:00",
+        "location_id": "plaza",
+        "money": 20,
+        "energy": 100,
+        "inventory": {"apple": 2},
+        "notes": [],
+        "status_effects": ["focused"],
+    }
+
+
+def test_inspect_returns_detached_object_payload(minimal_world_state):
+    env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
+    env.reset()
+
+    result = env.step({"type": "inspect", "target_id": "bulletin"})
+    payload_object = result.data["object"]
+    payload_object["visible_state"]["notice_count"] = 99
+
+    assert result.success is True
+    assert result.data["kind"] == "object"
+    assert payload_object["object_id"] == "bulletin"
+    assert env.state.objects["bulletin"].visible_state["notice_count"] == 2
+
+
+def test_open_resource_returns_resource_payload(minimal_world_state):
+    env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
+    env.reset()
+    env.state.objects["bulletin"].readable = True
+    env.state.objects["bulletin"].resource_content = "Market closes at noon."
+
+    result = env.step({"type": "open_resource", "target_id": "bulletin"})
+
+    assert result.success is True
+    assert result.data == {
+        "kind": "resource",
+        "object_id": "bulletin",
+        "title": "Bulletin Board",
+        "content": "Market closes at noon.",
+    }
+
+
+def test_load_skill_returns_full_skill_payload(minimal_world_state):
+    env = TownBenchEnv(minimal_world_state)
+    env.reset()
+
+    result = env.step({"type": "load_skill", "target_id": "safety_basics"})
+
+    assert result.success is True
+    assert result.data == {
+        "kind": "skill",
+        "skill_id": "safety_basics",
+        "name": "Safety Basics",
+        "description": "Simple safety reminders for acting in the town.",
+        "content": "Always check your location before acting.",
+    }
+
+
 def test_successful_steps_apply_time_and_energy_costs(minimal_world_state):
     env = TownBenchEnv(minimal_world_state)
     env.reset()
