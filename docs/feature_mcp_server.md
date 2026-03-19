@@ -1,4 +1,17 @@
-# Feature: MCP Server
+# Feature Proposal: MCP Server
+
+## Status
+
+This document is a design proposal, not an implementation guide.
+
+As of 2026-03-19, the repository does not yet include:
+
+- an `mcp_server/` package
+- `scripts/run_mcp_server.py`
+- `tests/test_mcp_server.py`
+- an `mcp` dependency in `requirements.txt`
+
+Any commands, file paths, and client examples below describe the proposed design after implementation, not functionality that exists today.
 
 ## Summary
 
@@ -18,9 +31,11 @@ MCP eliminates this coupling. A single MCP server exposes all environment operat
 
 The MCP server should be a thin protocol adapter over the existing `TownBenchEnv`. It must not duplicate engine logic, modify state models, or replace the role of `baselines/`.
 
-- no changes to `engine/`, `runtime/`, `scenario/`, or `evaluation/`
-- all MCP tools delegate to `TownBenchEnv.step()` and `TownBenchEnv.reset()`
-- tool definitions are generated mechanically from `TOOL_ACTION_SPECS`
+- prefer no changes to `engine/`, `runtime/`, `scenario/`, or `evaluation/`
+- action tools delegate to `TownBenchEnv.step()`
+- episode creation delegates to `TownBenchEnv.reset()`
+- score and read-only inspection endpoints may call existing helpers such as `score_episode()`, `TownBenchEnv.get_observation()`, and `TownBenchEnv.get_trace()`
+- action tool definitions are generated mechanically from `TOOL_ACTION_SPECS`, with MCP-specific session wrapping layered on top
 
 ## Protocol Surface
 
@@ -50,7 +65,7 @@ Tools are the primary interaction surface. Each tool corresponds to an environme
 | `townbench/write_note` | `text` | Write a note into the agent notebook |
 | `townbench/call_action` | `target_id`, `action_name` | Call an exposed action on an object in the current location |
 
-All action tools include a `session_id` parameter to identify the active episode.
+All action tools include a `session_id` parameter to identify the active episode. This parameter is not part of `ActionToolSpec`; it is added by the MCP adapter layer.
 
 Every action tool returns the full `StepResult` as a JSON object, matching the existing `StepResult.model_dump()` format. This includes:
 
@@ -119,43 +134,44 @@ Client                              MCP Server
 
 ### Concurrency
 
-Each session holds an independent `TownBenchEnv` instance. Multiple sessions can run in parallel. Access to each session is serialized through per-session locking to prevent race conditions from concurrent tool calls.
+Each session holds an independent `TownBenchEnv` instance. Multiple sessions can run in parallel. Access to each session should be serialized through per-session locking to prevent race conditions from concurrent tool calls.
 
 ### Session Storage
 
-Sessions are stored in a simple in-memory dictionary:
+The simplest initial implementation stores sessions in an in-memory dictionary:
 
 ```python
 _sessions: dict[str, TownBenchEnv] = {}
 ```
 
-Sessions are created on `start_episode` and remain until the server shuts down. A future enhancement could add explicit `end_episode` cleanup and optional session TTL.
+Sessions would be created on `start_episode` and remain until the server shuts down. A future enhancement could add explicit `end_episode` cleanup and optional session TTL.
 
 ## Transport Modes
 
-The server should support both MCP transport modes:
+The full design targets both MCP transport modes:
 
 | Mode | Use Case | How To Start |
 |------|----------|-------------|
 | **stdio** | Local development, Claude Desktop integration | `python scripts/run_mcp_server.py --transport stdio` |
 | **SSE** | Remote access, multi-client scenarios | `python scripts/run_mcp_server.py --transport sse --port 8080` |
 
-Default is `stdio` to match the most common MCP integration pattern.
+The recommended first implementation only supports `stdio`. `SSE` should be added later if there is a concrete remote or multi-client need.
 
 ## Mapping From ActionSpec To MCP Tool
 
-The mapping from existing `ActionSpec` definitions to MCP `Tool` objects is mechanical. For each spec in `TOOL_ACTION_SPECS`:
+The mapping from existing `ActionSpec` definitions to MCP `Tool` objects is mostly mechanical. For each spec in `TOOL_ACTION_SPECS`:
 
 ```
-ActionToolSpec.name        →  MCP Tool name (prefixed with "townbench/")
-ActionToolSpec.description →  MCP Tool description
-ActionToolSpec.parameters  →  MCP Tool inputSchema properties
+ActionToolSpec.name         → MCP tool name (prefixed with "townbench/")
+ActionToolSpec.description  → MCP tool description
+ActionToolSpec.parameters   → MCP tool inputSchema properties
 ActionToolSpec.build_action → used internally to construct Action from tool arguments
+session_id                  → extra MCP-only parameter resolved before dispatch
 ```
 
-The server iterates `TOOL_ACTION_SPECS` at startup and registers one MCP tool per spec. If new action types are added to the engine in the future, they automatically appear as MCP tools without any MCP-specific code changes.
+The server can iterate `TOOL_ACTION_SPECS` at startup and register one MCP tool per spec. If new action types are added to the engine in the future, they should appear as MCP tools automatically, as long as the MCP wrapper continues to add `session_id` consistently.
 
-## File Structure
+## Proposed File Structure
 
 ```
 mcp_server/
@@ -169,15 +185,15 @@ scripts/
 
 Estimated new code: approximately 250 lines plus the CLI entry point.
 
-## Dependencies
+## Proposed Dependency
 
-One new dependency:
+One new dependency is expected:
 
 ```
 mcp>=1.0
 ```
 
-Added to `requirements.txt`. The `mcp` package provides the server framework, tool/resource/prompt decorators, and transport handling.
+This is not yet added to `requirements.txt`. The `mcp` package would provide the server framework, tool/resource/prompt decorators, and transport handling.
 
 ## Relationship To Existing Baselines
 
@@ -192,11 +208,11 @@ The MCP server does not replace `baselines/`. They serve different roles:
 
 The baseline system remains useful as a reference implementation that demonstrates how to build a complete agent strategy on top of the environment. The MCP server is the framework-agnostic way to access the same environment.
 
-## Client Configuration Examples
+## Planned Client Configuration Examples
 
 ### Claude Desktop
 
-Add to `claude_desktop_config.json`:
+After implementation, add to `claude_desktop_config.json`:
 
 ```json
 {
@@ -212,7 +228,7 @@ Add to `claude_desktop_config.json`:
 
 ### Cursor / Cline
 
-Configure MCP server in settings with the same command. The tools will appear in the agent tool palette automatically.
+After implementation, configure the MCP server in settings with the same command. The tools should then appear in the agent tool palette automatically.
 
 ### Custom Python Client
 
@@ -246,9 +262,9 @@ async with stdio_client(params) as (read, write):
         )
 ```
 
-## Testing
+## Proposed Testing
 
-Tests go in `tests/test_mcp_server.py` and cover:
+Tests should go in `tests/test_mcp_server.py` and cover:
 
 - tool listing returns all expected action tools plus session management tools
 - `start_episode` creates a session and returns a valid observation
@@ -259,7 +275,7 @@ Tests go in `tests/test_mcp_server.py` and cover:
 - resource listing and reading return expected data
 - prompt expansion produces the expected briefing format
 
-Tests should use direct Python calls to the server handlers (without spawning a subprocess) to keep execution fast and deterministic.
+Tests should use direct Python calls to the server handlers, without spawning a subprocess, to keep execution fast and deterministic.
 
 ## Implementation Phases
 
@@ -271,6 +287,8 @@ Tests should use direct Python calls to the server handlers (without spawning a 
 - register `start_episode`, all 7 action tools, and `get_score`
 - support `stdio` transport
 
+This phase is the recommended stopping point for the first usable version.
+
 ### Phase 2: Resources And Prompts
 
 - add `townbench://scenarios` resource
@@ -279,10 +297,12 @@ Tests should use direct Python calls to the server handlers (without spawning a 
 - add `townbench/agent_briefing` prompt template
 - add `sse` transport option
 
+This phase should be driven by actual client demand. It is not required to validate the value of MCP for TownBench.
+
 ### Phase 3: Testing And Documentation
 
 - write `tests/test_mcp_server.py`
-- update `docs/architecture.md` to describe the MCP server layer
+- once MCP is implemented, update `docs/architecture.md` to describe the new server layer
 - add MCP setup instructions to the project README or a dedicated guide
 
 ## Scope Boundary
@@ -300,7 +320,7 @@ These can be added as future enhancements if needed.
 
 ## Success Condition
 
-The feature is complete when:
+The initial MCP integration is successful when:
 
 - a developer can start the MCP server with one command
 - any MCP client can connect and discover all TownBench tools
