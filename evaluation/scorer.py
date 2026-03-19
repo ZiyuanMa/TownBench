@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Optional
-
 from pydantic import BaseModel
 
 from engine.rules import parse_time_label
@@ -13,7 +11,7 @@ class EpisodeScore(BaseModel):
     survived_days: int
     final_money: int
     done: bool
-    termination_reason: Optional[str] = None
+    termination_reason: str | None = None
     step_count: int
     summary: str
 
@@ -52,7 +50,7 @@ def _build_summary(
     survived_days: int,
     final_money: int,
     done: bool,
-    termination_reason: Optional[str],
+    termination_reason: str | None,
     step_count: int,
 ) -> str:
     status = "finished" if done else "in_progress"

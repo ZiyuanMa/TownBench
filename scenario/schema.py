@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -91,8 +91,8 @@ class ScenarioObjectSource(BaseModel):
     inspectable: bool = True
     readable: bool = False
     actionable: bool = False
-    resource_content: Optional[str] = None
-    resource_file: Optional[str] = None
+    resource_content: str | None = None
+    resource_file: str | None = None
     action_effects: dict[str, "ScenarioObjectActionEffectSource"] = Field(default_factory=dict)
 
     @model_validator(mode="after")
@@ -103,7 +103,7 @@ class ScenarioObjectSource(BaseModel):
             )
         return self
 
-    def to_world_object(self, *, resource_content: Optional[str]) -> WorldObject:
+    def to_world_object(self, *, resource_content: str | None) -> WorldObject:
         return WorldObject(
             object_id=self.object_id,
             name=self.name,
@@ -150,7 +150,7 @@ class ScenarioObjectActionEffectSource(BaseModel):
     required_money: int = 0
     set_visible_state: dict[str, Any] = Field(default_factory=dict)
     set_world_flags: dict[str, bool] = Field(default_factory=dict)
-    move_to_location_id: Optional[str] = None
+    move_to_location_id: str | None = None
 
     def to_action_effect(self) -> ObjectActionEffect:
         return ObjectActionEffect(
@@ -196,7 +196,7 @@ class ScenarioEventRuleSource(BaseModel):
 class ScenarioTerminationConfigSource(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    max_steps: Optional[int] = None
+    max_steps: int | None = None
     stop_on_zero_energy: bool = True
     success_world_flags: list[str] = Field(default_factory=list)
     failure_world_flags: list[str] = Field(default_factory=list)
@@ -214,7 +214,7 @@ class ScenarioConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     scenario_id: str
-    seed: Optional[int] = None
+    seed: int | None = None
     opening_briefing: str = ""
     public_rules: list[str] = Field(default_factory=list)
     initial_world_state: ScenarioInitialWorldState = Field(default_factory=ScenarioInitialWorldState)

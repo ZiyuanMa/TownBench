@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import re
-from typing import Optional, Tuple
 
 from engine.state import ActionCost, TerminationConfig, WorldState
 
@@ -64,7 +63,7 @@ def apply_world_rules(state: WorldState) -> list[str]:
     return triggered_events
 
 
-def evaluate_termination(state: WorldState, *, step_id: int) -> Tuple[bool, Optional[str]]:
+def evaluate_termination(state: WorldState, *, step_id: int) -> tuple[bool, str | None]:
     config = state.termination_config or TerminationConfig()
 
     for flag in config.success_world_flags:

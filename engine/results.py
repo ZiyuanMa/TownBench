@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -18,5 +18,5 @@ class StepResult(BaseModel):
     triggered_events: list[str] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     done: bool = False
-    termination_reason: Optional[str] = None
+    termination_reason: str | None = None
     data: dict[str, Any] = Field(default_factory=dict)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, Optional, Union
+from typing import Any
 
 from engine.actions import Action
 from engine.observation import Observation, project_observation
@@ -12,14 +12,14 @@ from engine.transition import TransitionEngine
 
 
 class TownBenchEnv:
-    def __init__(self, initial_state: WorldState, engine: Optional[TransitionEngine] = None) -> None:
+    def __init__(self, initial_state: WorldState, engine: TransitionEngine | None = None) -> None:
         self._initial_state = initial_state.model_copy(deep=True)
         self._engine = engine or TransitionEngine()
-        self._state: Optional[WorldState] = None
+        self._state: WorldState | None = None
         self._trace: list[TraceEntry] = []
         self._step_count = 0
         self._done = False
-        self._termination_reason: Optional[str] = None
+        self._termination_reason: str | None = None
 
     @property
     def state(self) -> WorldState:
@@ -35,7 +35,7 @@ class TownBenchEnv:
         self._termination_reason = None
         return project_observation(self._state)
 
-    def step(self, action: Union[Action, Mapping[str, Any]]) -> StepResult:
+    def step(self, action: Action | Mapping[str, Any]) -> StepResult:
         if self._state is None:
             self.reset()
         if self._done:

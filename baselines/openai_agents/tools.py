@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from inspect import Parameter, Signature
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 
 from engine.actions import ActionSpec, ActionToolSpec, TOOL_ACTION_SPECS
 from runtime.env import TownBenchEnv
@@ -12,7 +12,7 @@ ToolDecorator = Callable[[Callable[..., Any]], Callable[..., Any]]
 def build_townbench_tools(
     env: TownBenchEnv,
     *,
-    function_tool_decorator: Optional[ToolDecorator] = None,
+    function_tool_decorator: ToolDecorator | None = None,
 ) -> list[Callable[..., Any]]:
     decorator = function_tool_decorator or _load_function_tool_decorator()
     return [_build_tool(spec, env, decorator) for spec in TOOL_ACTION_SPECS]

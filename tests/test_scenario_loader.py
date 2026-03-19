@@ -37,7 +37,7 @@ def test_load_scenario_builds_world_state():
     assert state.termination_config.success_world_flags == []
 
 
-def test_search_is_disabled_and_open_resource_still_works():
+def test_search_is_rejected_and_open_resource_still_works():
     scenario_path = Path(__file__).resolve().parents[1] / "scenarios" / "demo_town" / "scenario.yaml"
     env = TownBenchEnv(load_scenario(scenario_path))
     env.reset()
@@ -46,7 +46,6 @@ def test_search_is_disabled_and_open_resource_still_works():
     open_result = env.step({"type": "open_resource", "target_id": "notice_board"})
 
     assert search_result.success is False
-    assert search_result.warnings == ["disabled_action"]
     assert open_result.success is True
     assert "Payment: 9 coins each time" in open_result.data["content"]
 

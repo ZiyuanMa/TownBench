@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 
 from baselines.openai_agents.config import OpenAIAgentsConfig
 from baselines.openai_agents.tools import ToolDecorator, build_townbench_tools
@@ -9,10 +9,10 @@ from runtime.env import TownBenchEnv
 
 def build_openai_agent(
     env: TownBenchEnv,
-    config: Optional[OpenAIAgentsConfig] = None,
+    config: OpenAIAgentsConfig | None = None,
     *,
-    agent_cls: Optional[type] = None,
-    function_tool_decorator: Optional[ToolDecorator] = None,
+    agent_cls: type | None = None,
+    function_tool_decorator: ToolDecorator | None = None,
 ) -> Any:
     config = config or OpenAIAgentsConfig()
     agent_type = agent_cls or _load_agent_class()

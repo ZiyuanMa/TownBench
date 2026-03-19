@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import Any, Callable, Literal, Optional, Union
+from typing import Any, Callable, Literal
 
 from pydantic import BaseModel, Field
 
@@ -12,7 +11,6 @@ from engine.state import ActionCost, WorldObject, WorldState
 
 ActionType = Literal[
     "move_to",
-    "search",
     "inspect",
     "open_resource",
     "load_skill",
@@ -24,13 +22,13 @@ ActionType = Literal[
 
 class Action(BaseModel):
     type: ActionType
-    target_id: Optional[str] = None
+    target_id: str | None = None
     args: dict[str, Any] = Field(default_factory=dict)
-    request_id: Optional[str] = None
+    request_id: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
-def normalize_action(value: Union[Action, Mapping[str, Any]]) -> Action:
+def normalize_action(value: Action | dict[str, Any]) -> Action:
     if isinstance(value, Action):
         return value
     return Action.model_validate(value)
@@ -43,11 +41,11 @@ PayloadBuilder = Callable[[WorldState], dict[str, Any]]
 class ActionExecution:
     success: bool
     message: str
-    error_type: Optional[str] = None
+    error_type: str | None = None
     money_delta: int = 0
     energy_delta: int = 0
     inventory_delta: dict[str, int] | None = None
-    payload_builder: Optional[PayloadBuilder] = None
+    payload_builder: PayloadBuilder | None = None
 
 
 ActionHandler = Callable[[WorldState, Action], ActionExecution]
@@ -72,17 +70,17 @@ class ActionToolSpec:
 class ActionSpec:
     action_type: ActionType
     default_cost: ActionCost = field(default_factory=ActionCost)
-    tool: Optional[ActionToolSpec] = None
-    handler: Optional[ActionHandler] = None
+    tool: ActionToolSpec | None = None
+    handler: ActionHandler | None = None
 
 
 def _success(
     message: str,
     *,
-    payload_builder: Optional[PayloadBuilder] = None,
+    payload_builder: PayloadBuilder | None = None,
     money_delta: int = 0,
     energy_delta: int = 0,
-    inventory_delta: Optional[dict[str, int]] = None,
+    inventory_delta: dict[str, int] | None = None,
 ) -> ActionExecution:
     return ActionExecution(
         success=True,
@@ -96,34 +94,6 @@ def _success(
 
 def _failure(error_type: str, message: str) -> ActionExecution:
     return ActionExecution(success=False, message=message, error_type=error_type)
-
-
-def _build_move_to_action(target_id: str) -> Action:
-    return Action(type="move_to", target_id=target_id)
-
-
-def _build_inspect_action(target_id: str) -> Action:
-    return Action(type="inspect", target_id=target_id)
-
-
-def _build_open_resource_action(target_id: str) -> Action:
-    return Action(type="open_resource", target_id=target_id)
-
-
-def _build_load_skill_action(target_id: str) -> Action:
-    return Action(type="load_skill", target_id=target_id)
-
-
-def _build_check_status_action() -> Action:
-    return Action(type="check_status")
-
-
-def _build_write_note_action(text: str) -> Action:
-    return Action(type="write_note", args={"text": text})
-
-
-def _build_call_action(target_id: str, action_name: str) -> Action:
-    return Action(type="call_action", target_id=target_id, args={"action": action_name})
 
 
 def _handle_check_status(state: WorldState, action: Action) -> ActionExecution:
@@ -185,11 +155,6 @@ def _handle_write_note(state: WorldState, action: Action) -> ActionExecution:
 
     state.agent.notes.append(text)
     return _success("Note saved.")
-
-
-def _handle_search(state: WorldState, action: Action) -> ActionExecution:
-    del state, action
-    return _failure("disabled_action", "search is intentionally disabled in the current milestone.")
 
 
 def _handle_open_resource(state: WorldState, action: Action) -> ActionExecution:
@@ -331,25 +296,19 @@ def _get_accessible_object(state: WorldState, target_id: str) -> WorldObject | A
 
 
 def _serialize_object(world_object: WorldObject) -> dict[str, Any]:
-    return {
-        "object_id": world_object.object_id,
-        "name": world_object.name,
-        "object_type": world_object.object_type,
-        "summary": world_object.summary,
-        "visible_state": deepcopy(world_object.visible_state),
-        "action_ids": list(world_object.action_ids),
-    }
+    data = world_object.model_dump(
+        include={"object_id", "name", "object_type", "summary", "visible_state", "action_ids"}
+    )
+    data["visible_state"] = deepcopy(world_object.visible_state)
+    return data
 
 
 def _serialize_agent_status(state: WorldState) -> dict[str, Any]:
     return {
         "current_time": state.current_time,
-        "location_id": state.agent.location_id,
-        "money": state.agent.money,
-        "energy": state.agent.energy,
-        "inventory": dict(state.agent.inventory),
-        "notes": list(state.agent.notes),
-        "status_effects": list(state.agent.status_effects),
+        **state.agent.model_dump(
+            include={"location_id", "money", "energy", "inventory", "notes", "status_effects"}
+        ),
     }
 
 
@@ -372,14 +331,9 @@ _ACTION_SPEC_LIST: tuple[ActionSpec, ...] = (
             name="move_to",
             description="Move the agent to a linked location by location id.",
             parameters=(ActionToolParameter("target_id"),),
-            build_action=_build_move_to_action,
+            build_action=lambda target_id: Action(type="move_to", target_id=target_id),
         ),
         handler=_handle_move_to,
-    ),
-    ActionSpec(
-        action_type="search",
-        default_cost=ActionCost(time_delta=2, energy_delta=-1),
-        handler=_handle_search,
     ),
     ActionSpec(
         action_type="inspect",
@@ -388,7 +342,7 @@ _ACTION_SPEC_LIST: tuple[ActionSpec, ...] = (
             name="inspect",
             description="Inspect the current location or an object that is present there.",
             parameters=(ActionToolParameter("target_id"),),
-            build_action=_build_inspect_action,
+            build_action=lambda target_id: Action(type="inspect", target_id=target_id),
         ),
         handler=_handle_inspect,
     ),
@@ -399,7 +353,7 @@ _ACTION_SPEC_LIST: tuple[ActionSpec, ...] = (
             name="open_resource",
             description="Open a readable resource in the current location and return its content.",
             parameters=(ActionToolParameter("target_id"),),
-            build_action=_build_open_resource_action,
+            build_action=lambda target_id: Action(type="open_resource", target_id=target_id),
         ),
         handler=_handle_open_resource,
     ),
@@ -410,7 +364,7 @@ _ACTION_SPEC_LIST: tuple[ActionSpec, ...] = (
             name="load_skill",
             description="Load a skill document by skill id and return its full content.",
             parameters=(ActionToolParameter("target_id"),),
-            build_action=_build_load_skill_action,
+            build_action=lambda target_id: Action(type="load_skill", target_id=target_id),
         ),
         handler=_handle_load_skill,
     ),
@@ -420,7 +374,7 @@ _ACTION_SPEC_LIST: tuple[ActionSpec, ...] = (
             name="check_status",
             description="Check the agent status, including location, money, energy, inventory and notes.",
             parameters=(),
-            build_action=_build_check_status_action,
+            build_action=lambda: Action(type="check_status"),
         ),
         handler=_handle_check_status,
     ),
@@ -431,7 +385,7 @@ _ACTION_SPEC_LIST: tuple[ActionSpec, ...] = (
             name="write_note",
             description="Write a note into the agent's notebook.",
             parameters=(ActionToolParameter("text"),),
-            build_action=_build_write_note_action,
+            build_action=lambda text: Action(type="write_note", args={"text": text}),
         ),
         handler=_handle_write_note,
     ),
@@ -442,7 +396,9 @@ _ACTION_SPEC_LIST: tuple[ActionSpec, ...] = (
             name="call_action",
             description="Call an exposed action on an object in the current location.",
             parameters=(ActionToolParameter("target_id"), ActionToolParameter("action_name")),
-            build_action=_build_call_action,
+            build_action=lambda target_id, action_name: Action(
+                type="call_action", target_id=target_id, args={"action": action_name}
+            ),
         ),
         handler=_handle_call_action,
     ),
@@ -453,7 +409,7 @@ ACTION_SPECS: dict[str, ActionSpec] = {spec.action_type: spec for spec in _ACTIO
 TOOL_ACTION_SPECS: tuple[ActionSpec, ...] = tuple(spec for spec in _ACTION_SPEC_LIST if spec.tool is not None)
 
 
-def get_action_spec(action_type: str) -> Optional[ActionSpec]:
+def get_action_spec(action_type: str) -> ActionSpec | None:
     return ACTION_SPECS.get(action_type)
 
 

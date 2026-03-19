@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -21,7 +21,7 @@ class WorldEventRule(BaseModel):
 
 
 class TerminationConfig(BaseModel):
-    max_steps: Optional[int] = None
+    max_steps: int | None = None
     stop_on_zero_energy: bool = True
     success_world_flags: list[str] = Field(default_factory=list)
     failure_world_flags: list[str] = Field(default_factory=list)
@@ -58,7 +58,7 @@ class WorldObject(BaseModel):
     inspectable: bool = True
     readable: bool = False
     actionable: bool = False
-    resource_content: Optional[str] = None
+    resource_content: str | None = None
     action_effects: dict[str, "ObjectActionEffect"] = Field(default_factory=dict)
 
 
@@ -72,7 +72,7 @@ class ObjectActionEffect(BaseModel):
     required_money: int = 0
     set_visible_state: dict[str, Any] = Field(default_factory=dict)
     set_world_flags: dict[str, bool] = Field(default_factory=dict)
-    move_to_location_id: Optional[str] = None
+    move_to_location_id: str | None = None
 
 
 class Skill(BaseModel):
@@ -97,4 +97,4 @@ class WorldState(BaseModel):
     active_event_ids: list[str] = Field(default_factory=list)
     triggered_event_ids: list[str] = Field(default_factory=list)
     scenario_id: str = "memory_scenario"
-    seed: Optional[int] = None
+    seed: int | None = None

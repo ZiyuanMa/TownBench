@@ -1,17 +1,15 @@
 from __future__ import annotations
 
 import os
-
-from typing import Literal, Optional
-
+from typing import Literal
 from pydantic import BaseModel
 
 
 class OpenAIAgentsConfig(BaseModel):
     agent_name: str = "TownBench Baseline"
-    model: Optional[str] = None
-    max_turns: Optional[int] = None
-    system_prompt: Optional[str] = None
+    model: str | None = None
+    max_turns: int | None = None
+    system_prompt: str | None = None
     api: Literal["chat_completions", "responses"] = "chat_completions"
     tracing_disabled: bool = True
 

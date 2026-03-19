@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any, Optional, Union
+from typing import Any
 
 from pydantic import ValidationError
 
@@ -34,14 +34,14 @@ class StepEffects:
 class StepSnapshot:
     observation: Observation
     done: bool
-    termination_reason: Optional[str]
+    termination_reason: str | None
 
 
 class TransitionEngine:
     def step(
         self,
         state: WorldState,
-        raw_action: Union[Action, Mapping[str, Any]],
+        raw_action: Action | Mapping[str, Any],
         *,
         step_id: int,
     ) -> TransitionOutcome:
@@ -198,7 +198,7 @@ class TransitionEngine:
         return TransitionOutcome(state=state, result=result, trace_entry=trace_entry)
 
 
-def _raw_action_payload(raw_action: Union[Action, Mapping[str, Any]]) -> dict[str, Any]:
+def _raw_action_payload(raw_action: Action | Mapping[str, Any]) -> dict[str, Any]:
     if isinstance(raw_action, Action):
         return raw_action.model_dump()
     return dict(raw_action)

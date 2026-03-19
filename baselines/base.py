@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Optional
-from typing import Union
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -18,19 +17,19 @@ class BaselineEpisodeResult(BaseModel):
     opening_briefing: str
     public_rules: list[str] = Field(default_factory=list)
     final_output: str
-    runner_error: Optional[str] = None
+    runner_error: str | None = None
     score: EpisodeScore
     trace: list[TraceEntry] = Field(default_factory=list)
     final_state: dict[str, Any] = Field(default_factory=dict)
     final_observation: dict[str, Any] = Field(default_factory=dict)
     done: bool = False
-    termination_reason: Optional[str] = None
+    termination_reason: str | None = None
 
 
 def resolve_episode_env(
     *,
-    scenario_path: Optional[Union[str, Path]],
-    env: Optional[TownBenchEnv],
+    scenario_path: str | Path | None,
+    env: TownBenchEnv | None,
 ) -> TownBenchEnv:
     if env is not None:
         return env
@@ -60,7 +59,7 @@ def build_episode_result(
     *,
     env: TownBenchEnv,
     final_output: str,
-    runner_error: Optional[str],
+    runner_error: str | None,
 ) -> BaselineEpisodeResult:
     trace = env.get_trace()
     score = score_episode(trace, env.state)

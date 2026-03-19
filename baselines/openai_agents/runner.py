@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable
 
 from agents import (
     AgentUpdatedStreamEvent,
@@ -29,11 +29,11 @@ EventHandler = Callable[[str], None]
 
 def run_openai_agents_episode(
     *,
-    scenario_path: Optional[Union[str, Path]] = None,
-    env: Optional[TownBenchEnv] = None,
-    config: Optional[OpenAIAgentsConfig] = None,
-    agent_cls: Optional[type] = None,
-    runner_cls: Optional[type] = None,
+    scenario_path: str | Path | None = None,
+    env: TownBenchEnv | None = None,
+    config: OpenAIAgentsConfig | None = None,
+    agent_cls: type | None = None,
+    runner_cls: type | None = None,
     function_tool_decorator=None,
 ) -> BaselineEpisodeResult:
     prepared = _prepare_episode_run(
@@ -50,14 +50,14 @@ def run_openai_agents_episode(
 
 async def run_openai_agents_episode_streamed(
     *,
-    scenario_path: Optional[Union[str, Path]] = None,
-    env: Optional[TownBenchEnv] = None,
-    config: Optional[OpenAIAgentsConfig] = None,
-    agent_cls: Optional[type] = None,
-    runner_cls: Optional[type] = None,
+    scenario_path: str | Path | None = None,
+    env: TownBenchEnv | None = None,
+    config: OpenAIAgentsConfig | None = None,
+    agent_cls: type | None = None,
+    runner_cls: type | None = None,
     function_tool_decorator=None,
-    on_text_delta: Optional[TextDeltaHandler] = None,
-    on_event: Optional[EventHandler] = None,
+    on_text_delta: TextDeltaHandler | None = None,
+    on_event: EventHandler | None = None,
 ) -> BaselineEpisodeResult:
     prepared = _prepare_episode_run(
         scenario_path=scenario_path,
@@ -105,18 +105,18 @@ class _PreparedEpisodeRun:
 
 
 class _RunnerOutcome:
-    def __init__(self, *, final_output: str, runner_error: Optional[str]) -> None:
+    def __init__(self, *, final_output: str, runner_error: str | None) -> None:
         self.final_output = final_output
         self.runner_error = runner_error
 
 
 def _prepare_episode_run(
     *,
-    scenario_path: Optional[Union[str, Path]],
-    env: Optional[TownBenchEnv],
-    config: Optional[OpenAIAgentsConfig],
-    agent_cls: Optional[type],
-    runner_cls: Optional[type],
+    scenario_path: str | Path | None,
+    env: TownBenchEnv | None,
+    config: OpenAIAgentsConfig | None,
+    agent_cls: type | None,
+    runner_cls: type | None,
     function_tool_decorator,
 ) -> _PreparedEpisodeRun:
     active_env = resolve_episode_env(scenario_path=scenario_path, env=env)
@@ -145,7 +145,7 @@ def _prepare_episode_run(
 
 
 def _run_sync_episode(prepared: _PreparedEpisodeRun) -> _RunnerOutcome:
-    runner_error: Optional[str] = None
+    runner_error: str | None = None
     final_output = ""
     try:
         run_result = prepared.runner_type.run_sync(
@@ -163,10 +163,10 @@ def _run_sync_episode(prepared: _PreparedEpisodeRun) -> _RunnerOutcome:
 async def _run_streamed_episode(
     prepared: _PreparedEpisodeRun,
     *,
-    on_text_delta: Optional[TextDeltaHandler],
-    on_event: Optional[EventHandler],
+    on_text_delta: TextDeltaHandler | None,
+    on_event: EventHandler | None,
 ) -> _RunnerOutcome:
-    runner_error: Optional[str] = None
+    runner_error: str | None = None
     streamed_result = prepared.runner_type.run_streamed(
         prepared.agent,
         prepared.initial_input,
@@ -185,15 +185,15 @@ async def _run_streamed_episode(
     )
 
 
-def _resolve_runner_error(env: TownBenchEnv, exc: MaxTurnsExceeded) -> Optional[str]:
+def _resolve_runner_error(env: TownBenchEnv, exc: MaxTurnsExceeded) -> str | None:
     return None if env.is_done() else str(exc)
 
 
 def _handle_stream_event(
     event: Any,
     *,
-    on_text_delta: Optional[TextDeltaHandler],
-    on_event: Optional[EventHandler],
+    on_text_delta: TextDeltaHandler | None,
+    on_event: EventHandler | None,
 ) -> None:
     if isinstance(event, RawResponsesStreamEvent):
         data = event.data

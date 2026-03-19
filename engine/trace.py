@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -10,7 +10,7 @@ class TraceEntry(BaseModel):
     raw_action: dict[str, Any] = Field(default_factory=dict)
     normalized_action: dict[str, Any] = Field(default_factory=dict)
     success: bool
-    error_type: Optional[str] = None
+    error_type: str | None = None
     message: str
     time_delta: int = 0
     money_delta: int = 0
@@ -19,4 +19,4 @@ class TraceEntry(BaseModel):
     triggered_events: list[str] = Field(default_factory=list)
     observation_summary: dict[str, Any] = Field(default_factory=dict)
     done: bool = False
-    termination_reason: Optional[str] = None
+    termination_reason: str | None = None
