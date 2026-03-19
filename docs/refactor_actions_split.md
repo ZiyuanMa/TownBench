@@ -1,197 +1,215 @@
-# 重构提案：拆分 actions.py
+# 重构提案：拆分 `engine/actions.py`
 
-## 问题描述
+## 结论
 
-`engine/actions.py` 目前有 **472 行**，承担了 5 种不同职责：
+这个重构是合理的，但目标应该收敛为：
 
-| 职责 | 行数（约） | 内容 |
-|------|-----------|------|
-| 数据模型 | ~30 | `Action`, `ActionType`, `ActionExecution` |
-| Spec 注册体系 | ~40 | `ActionSpec`, `ActionToolSpec`, `ActionToolParameter` |
-| Handler 实现 | ~200 | `_handle_move_to`, `_handle_inspect`, ... (8 个) |
-| Action Builder | ~30 | `_build_move_to_action`, ... (8 个) |
-| Spec 注册表 + 辅助 | ~70 | `ACTION_SPECS`, `get_action_cost`, `_serialize_*` |
+- 降低 `engine/actions.py` 的阅读负担
+- 把 action handler 实现与 action 注册信息分开
+- 保持现有外部 API、行为顺序和测试语义不变
 
-Handler 实现占了接近一半的代码量，且逻辑各自独立。随着新 action 类型的添加
-（如规划中的 `trade`, `craft` 等），这个文件会持续膨胀。
+不建议把它表述成“重新设计 action 系统”。从当前代码看，注册表、默认 cost、tool 元数据、handler 引用已经收敛在同一个 `ActionSpec` 里，核心问题不是“多处注册”，而是**一个文件同时承载了模型、注册表、handler 实现和若干私有辅助逻辑**。
 
----
+## 当前现状
 
-## 推荐方案：拆分为 actions + handlers
+`engine/actions.py` 目前同时包含：
 
-### 目标文件结构
+- action 输入模型：`Action`
+- action 执行结果模型：`ActionExecution`
+- tool/spec 注册结构：`ActionToolSpec`、`ActionSpec`
+- 所有内建 `_handle_*` 实现
+- 若干仅供 handler 使用的私有辅助函数
+- action registry 与默认 cost 查询逻辑
 
-```
+当前实现里已经有两个值得保留的点：
+
+1. `ActionSpec` 已经同时持有 `default_cost`、`tool`、`handler`
+2. `TransitionEngine` 已经通过 `get_action_spec()` 做 dispatch，而不是维护独立 handler map
+
+所以这次重构不需要再引入新的 registry 机制，也不需要改变 `TransitionEngine` 的公开协作方式。
+
+## 真正的问题
+
+当前文件的问题主要是模块职责混杂，而不是注册表分散：
+
+- handler 实现占据了文件的大部分阅读空间
+- `_get_accessible_object()`、`_serialize_object()`、`_has_required_inventory()` 这类私有 helper 只服务于 handler，却和 registry 紧耦合在同一文件
+- 新增 action 时，虽然理论上只需改一个文件，但这个文件已经同时承担“定义”和“实现”，评审成本会继续升高
+
+此外，`call_action` handler 本身包含较多校验和状态写入逻辑，继续往这个文件里堆新动作会让 `actions.py` 越来越像“半个 transition 子系统”。
+
+## 推荐方案
+
+### 目标结构
+
+```text
 engine/
-├── actions.py      # 数据模型 + Spec 注册体系 + 注册表（~150 行）
-├── handlers.py     # 所有 _handle_* 函数 + 辅助函数（~250 行）
-├── ...
+├── action_models.py    # Action / ActionExecution / 相关 type alias
+├── action_handlers.py  # 所有内建 handler 与私有 helper
+├── actions.py          # ActionSpec / registry / normalize_action / get_action_cost
 ```
 
-### actions.py 保留内容
+### 设计原则
 
-```python
-# engine/actions.py
-from engine.handlers import (
-    handle_check_status,
-    handle_move_to,
-    handle_inspect,
-    handle_write_note,
-    handle_search,
-    handle_open_resource,
-    handle_load_skill,
-    handle_call_action,
-)
+- `actions.py` 保留“声明式定义”
+- `action_handlers.py` 只放“行为实现”
+- 共享的数据结构放到独立模块，避免循环依赖
+- `engine.actions` 继续作为对外入口，必要时 re-export 现有符号
 
-# --- 数据模型 ---
-ActionType = Literal[...]
+## 为什么不建议只拆成 `actions.py + handlers.py`
 
-class Action(BaseModel): ...
-class ActionExecution: ...
+如果 `actions.py` import `handlers.py` 来组装 registry，而 `handlers.py` 又需要运行时使用 `Action` 和 `ActionExecution`，那么仅靠 `TYPE_CHECKING` 不够，因为 handler 需要真正构造 `ActionExecution` 实例。
 
-# --- Spec 体系 ---
-class ActionToolParameter: ...
-class ActionToolSpec: ...
-class ActionSpec: ...
+因此更稳妥的最小方案是先把共享模型抽到独立模块：
 
-# --- 注册表 ---
-_ACTION_SPEC_LIST: tuple[ActionSpec, ...] = (
-    ActionSpec(
-        action_type="move_to",
-        default_cost=ActionCost(time_delta=10, energy_delta=-2),
-        tool=ActionToolSpec(
-            name="move_to",
-            description="Move the agent to a linked location by location id.",
-            parameters=(ActionToolParameter("target_id"),),
-            build_action=lambda target_id: Action(type="move_to", target_id=target_id),
-        ),
-        handler=handle_move_to,
-    ),
-    # ...
-)
+- `Action`
+- `ActionExecution`
+- `ActionType`
+- `ActionHandler`
+- `PayloadBuilder`
 
-ACTION_SPECS: dict[str, ActionSpec] = ...
-TOOL_ACTION_SPECS: tuple[ActionSpec, ...] = ...
+这样依赖方向会变成：
 
-# --- 公开 API ---
-def normalize_action(...) -> Action: ...
-def get_action_spec(...) -> ActionSpec | None: ...
-def get_action_cost(...) -> ActionCost: ...
-def apply_action_costs(...) -> ActionCost: ...
+```text
+transition.py -> actions.py -> action_handlers.py
+                  |               |
+                  v               v
+             action_models.py   action_models.py
 ```
 
-### handlers.py 新文件内容
+这比“handlers 不能回依赖 actions，但又要直接使用 actions 里的运行时类型”更自洽。
 
-```python
-# engine/handlers.py
-"""Action handler implementations for all built-in action types."""
+## 拆分后各文件职责
 
-from engine.state import ActionCost, WorldObject, WorldState
+### `engine/action_models.py`
 
-# 注意：不导入 actions 模块，避免循环依赖
-# ActionExecution 和 Action 通过参数传入
+保留纯数据定义：
 
-def handle_move_to(state, action):
-    """Move agent to a linked location."""
-    ...
+- `ActionType`
+- `Action`
+- `ActionExecution`
+- `PayloadBuilder`
+- `ActionHandler`
 
-def handle_inspect(state, action):
-    """Inspect the current location or accessible object."""
-    ...
+这部分不应感知 registry、tool spec 或 engine rules。
 
-def handle_call_action(state, action):
-    """Execute an exposed object action with full validation."""
-    ...
+### `engine/action_handlers.py`
 
-# --- 辅助函数 ---
-def _get_accessible_object(state, target_id): ...
-def _serialize_object(world_object): ...
-def _serialize_agent_status(state): ...
-def _has_required_inventory(state, required_inventory): ...
-def _can_apply_inventory_delta(state, inventory_delta): ...
-```
+迁移以下内容：
 
-### 依赖方向
+- `_handle_move_to`
+- `_handle_inspect`
+- `_handle_open_resource`
+- `_handle_load_skill`
+- `_handle_check_status`
+- `_handle_write_note`
+- `_handle_call_action`
+- `_success` / `_failure`
+- `_get_accessible_object`
+- `_serialize_object`
+- `_serialize_agent_status`
+- `_has_required_inventory`
+- `_can_apply_inventory_delta`
 
-```
-transition.py → actions.py → handlers.py → state.py
-                    ↓              ↓
-                 rules.py       rules.py
-```
+这个模块可以依赖：
 
-关键约束：`handlers.py` 只依赖 `state.py` 和 `rules.py`，**不回依赖
-`actions.py`**。`ActionExecution` 类型需要从 `actions.py` 导入，但这是
-单向依赖，不会造成循环。
+- `engine.action_models`
+- `engine.rules`
+- `engine.state`
 
-### 循环依赖规避
+但不应该知道 registry 的存在。
 
-`handlers.py` 需要使用 `ActionExecution` 和 `Action` 类型。处理方式：
+### `engine/actions.py`
 
-```python
-# engine/handlers.py
-from __future__ import annotations
-from typing import TYPE_CHECKING
+保留注册与查询入口：
 
-if TYPE_CHECKING:
-    from engine.actions import Action, ActionExecution
+- `ActionSpec`
+- `ActionToolSpec`
+- `ActionToolParameter`
+- `_ACTION_SPEC_LIST`
+- `ACTION_SPECS`
+- `TOOL_ACTION_SPECS`
+- `normalize_action()`
+- `get_action_spec()`
+- `get_action_cost()`
+- `apply_action_costs()`
 
-# 实际运行时通过函数签名接收，不直接导入模块
-# 或者将 ActionExecution 移至 state.py 或独立的 types.py
-```
+同时 re-export：
 
-更干净的替代方案：将 `Action` 和 `ActionExecution` 移至 `engine/types.py`，
-两个模块都从 `types.py` 导入。
+- `Action`
+- `ActionExecution`
+- `ActionType`
 
----
+这样可以最大限度保持：
 
-## 额外优化：内联 `_build_*_action` 函数
+- `engine/__init__.py`
+- `runtime/env.py`
+- `baselines/openai_agents/tools.py`
+- 现有测试
 
-当前 8 个 `_build_*_action` 函数都是简单的单行构造：
+的导入路径稳定。
 
-```python
-# 当前（8 个独立函数，~30 行）
-def _build_move_to_action(target_id: str) -> Action:
-    return Action(type="move_to", target_id=target_id)
+## 不建议顺手做的事
 
-def _build_inspect_action(target_id: str) -> Action:
-    return Action(type="inspect", target_id=target_id)
-# ...
-```
+这次重构不建议混入以下变化：
 
-拆分后直接内联到 Spec 注册表的 lambda 中：
+- 修改 action 名称或 tool 协议
+- 调整 `ActionSpec` 结构
+- 修改 `TransitionEngine` 的 step 顺序
+- 重写 `call_action` 业务规则
+- 改动 baseline tool 生成逻辑
 
-```python
-ActionToolSpec(
-    name="move_to",
-    build_action=lambda target_id: Action(type="move_to", target_id=target_id),
-    ...
-),
-```
-
-消除 ~30 行样板代码。
-
----
-
-## 预期效果
-
-| 指标 | 当前 | 重构后 |
-|------|------|--------|
-| `actions.py` 行数 | 472 | ~150 |
-| `handlers.py` 行数 | — | ~250 |
-| 最大单文件复杂度 | 高 | 中 |
-| 新增 action 需修改的文件 | 1 个大文件 | 2 个小文件 |
-| builder 函数数 | 8 | 0（内联） |
+这些都属于行为层面的变化，不应和“拆文件”混在同一个 PR 里。
 
 ## 风险
 
-- `engine/__init__.py` 的公开 API 不变，外部调用者无感知。
-- `handlers.py` 和 `actions.py` 之间的类型依赖需要仔细管理。
-- 测试文件 `test_actions.py` 可能需要调整导入路径。
+### 1. 循环依赖
 
-## 建议验证步骤
+这是首要风险。没有共享模型模块时，`actions.py <-> handlers.py` 很容易形成真实循环。
 
-1. 创建 `engine/handlers.py`，移入所有 `_handle_*` 函数和辅助函数。
-2. 更新 `actions.py` 导入 handler 引用。
-3. 内联所有 `_build_*_action` 函数。
-4. 运行 `pytest` 全量测试确认不破坏行为。
-5. 检查 `engine/__init__.py` 的公开 API 仍然一致。
+缓解方式：
+
+- 先抽 `action_models.py`
+- 再迁移 handlers
+- 最后让 `actions.py` 组装 registry 并做 re-export
+
+### 2. 私有 helper 迁移后行为漂移
+
+`_serialize_object()` 和 `_serialize_agent_status()` 会影响 step payload；`_has_required_inventory()` 和 `_can_apply_inventory_delta()` 会影响失败分支。
+
+缓解方式：
+
+- 迁移前先锁定现有测试
+- 如有必要，补充针对 payload 与 warning code 的直接测试
+
+### 3. 外部导入路径回归
+
+当前已有代码直接从 `engine.actions` 导入符号，测试也覆盖了这一点。
+
+缓解方式：
+
+- 在 `engine.actions` 中保留原有导出
+- 若新增 `action_models.py`，也不要要求外部调用方立即切换导入
+
+## 建议实施顺序
+
+1. 新建 `engine/action_models.py`，先搬运纯数据结构与 type alias。
+2. 更新 `engine/actions.py`，改为从 `action_models.py` 导入这些类型，并保持原有导出。
+3. 新建 `engine/action_handlers.py`，迁移所有 `_handle_*` 和私有 helper。
+4. 在 `engine/actions.py` 中引用新的 handler 函数来构建 `_ACTION_SPEC_LIST`。
+5. 运行 `tests/test_actions.py`、`tests/test_transition.py` 和 baseline 相关测试。
+6. 最后再考虑是否要对 `TransitionEngine` 做更细的 pipeline 拆分；那应是下一阶段，不是本次拆分的一部分。
+
+## 验收标准
+
+- `engine.actions` 仍然是 action 注册与查询的唯一对外入口
+- 现有 action 行为、warning code、payload 结构不变
+- `TransitionEngine` 无需改动其公开接口
+- 新增一个内建 action 时，注册信息与实现位置清晰且职责分离
+- `tests/test_actions.py` 与 `tests/test_transition.py` 全部通过
+
+## 总结
+
+这份重构值得做，但应把目标定为**清理模块边界**，而不是重新发明 action 架构。
+
+最稳妥的落地方式不是简单地把 handler 挪去另一个文件，而是先抽出共享 action 模型，再完成 handler 拆分，并通过 `engine.actions` 维持兼容的公开入口。
