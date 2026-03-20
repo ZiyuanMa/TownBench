@@ -309,6 +309,104 @@ skills: []
         load_scenario(scenario_file)
 
 
+def test_loader_rejects_unknown_action_cost_fields(tmp_path):
+    scenario_file = tmp_path / "bad_scenario.yaml"
+    scenario_file.write_text(
+        """
+scenario_id: broken
+initial_agent_state:
+  location_id: plaza
+locations:
+  - location_id: plaza
+    name: Plaza
+    description: A plaza.
+action_costs:
+  move_to:
+    time_delta: 1
+    bonus_moves: 2
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        load_scenario(scenario_file)
+
+
+def test_loader_rejects_unknown_action_effect_fields(tmp_path):
+    scenario_file = tmp_path / "bad_scenario.yaml"
+    scenario_file.write_text(
+        """
+scenario_id: broken
+initial_agent_state:
+  location_id: plaza
+locations:
+  - location_id: plaza
+    name: Plaza
+    description: A plaza.
+objects:
+  - object_id: tea_station
+    name: Tea Station
+    object_type: station
+    location_id: plaza
+    summary: A station.
+    action_ids: [brew_tea]
+    action_effects:
+      brew_tea:
+        message: Brewed.
+        reward_points: 3
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        load_scenario(scenario_file)
+
+
+def test_loader_rejects_unknown_event_rule_fields(tmp_path):
+    scenario_file = tmp_path / "bad_scenario.yaml"
+    scenario_file.write_text(
+        """
+scenario_id: broken
+initial_agent_state:
+  location_id: plaza
+locations:
+  - location_id: plaza
+    name: Plaza
+    description: A plaza.
+event_rules:
+  - event_id: tea_ready_notice
+    trigger_once: true
+    cooldown: 1
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        load_scenario(scenario_file)
+
+
+def test_loader_rejects_unknown_termination_config_fields(tmp_path):
+    scenario_file = tmp_path / "bad_scenario.yaml"
+    scenario_file.write_text(
+        """
+scenario_id: broken
+initial_agent_state:
+  location_id: plaza
+locations:
+  - location_id: plaza
+    name: Plaza
+    description: A plaza.
+termination_config:
+  max_steps: 10
+  grace_turns: 2
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        load_scenario(scenario_file)
+
+
 def test_loader_rejects_conflicting_resource_sources(tmp_path):
     resource_file = tmp_path / "notice.txt"
     resource_file.write_text("File notice.", encoding="utf-8")

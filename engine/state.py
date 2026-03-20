@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ActionCost(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     time_delta: int = 0
     money_delta: int = 0
     energy_delta: int = 0
@@ -13,6 +15,8 @@ class ActionCost(BaseModel):
 
 
 class WorldEventRule(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     event_id: str
     required_world_flags: dict[str, bool] = Field(default_factory=dict)
     set_world_flags: dict[str, bool] = Field(default_factory=dict)
@@ -21,6 +25,8 @@ class WorldEventRule(BaseModel):
 
 
 class TerminationConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     max_steps: int | None = None
     stop_on_zero_energy: bool = True
     success_world_flags: list[str] = Field(default_factory=list)
@@ -28,6 +34,8 @@ class TerminationConfig(BaseModel):
 
 
 class AgentState(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     location_id: str
     money: int = 0
     energy: int = 100
@@ -63,6 +71,8 @@ class WorldObject(BaseModel):
 
 
 class ObjectActionEffect(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     message: str
     money_delta: int = 0
     energy_delta: int = 0

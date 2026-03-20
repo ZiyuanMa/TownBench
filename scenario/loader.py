@@ -78,16 +78,16 @@ def _build_world_state(
 ) -> WorldState:
     return WorldState(
         current_time=config.initial_world_state.current_time,
-        agent=config.initial_agent_state.to_agent_state(),
+        agent=config.initial_agent_state.model_copy(deep=True),
         locations=locations,
         objects=objects,
         skills=skills,
         opening_briefing=config.opening_briefing,
         public_rules=list(config.public_rules),
         world_flags=dict(config.initial_world_state.world_flags),
-        action_costs={action_type: cost.to_action_cost() for action_type, cost in config.action_costs.items()},
-        event_rules=[rule.to_event_rule() for rule in config.event_rules],
-        termination_config=config.termination_config.to_termination_config(),
+        action_costs={action_type: cost.model_copy(deep=True) for action_type, cost in config.action_costs.items()},
+        event_rules=[rule.model_copy(deep=True) for rule in config.event_rules],
+        termination_config=config.termination_config.model_copy(deep=True),
         scenario_id=config.scenario_id,
         seed=config.seed,
     )

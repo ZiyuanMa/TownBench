@@ -131,6 +131,11 @@ Agent 可见的信息切片，**不暴露**完整 WorldState。仅包含：
 场景以 YAML 定义，包含：地图、物体、技能文件引用、动作消耗覆盖、世界事件规则、
 终止条件。`loader.py` 在加载时执行严格校验：
 
+`scenario/schema.py` 继续保留 authoring 层专用模型（如 location、object、skill、
+`initial_world_state`），同时直接复用 `engine/state.py` 中的稳定叶子模型来校验
+`initial_agent_state`、`action_costs`、`event_rules`、`termination_config` 和对象
+`action_effects`，避免镜像 leaf model 的重复维护。
+
 - 唯一性检查（location/object/skill/event ID）
 - 引用完整性（links 指向已知 location、object 在已知 location）
 - action_effects 不允许存在未暴露的动作

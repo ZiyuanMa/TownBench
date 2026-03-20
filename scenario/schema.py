@@ -24,29 +24,6 @@ class ScenarioInitialWorldState(BaseModel):
     world_flags: dict[str, bool] = Field(default_factory=dict)
 
 
-class ScenarioAgentStateSource(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    location_id: str
-    money: int = 0
-    energy: int = 100
-    inventory: dict[str, int] = Field(default_factory=dict)
-    notes: list[str] = Field(default_factory=list)
-    status_effects: list[str] = Field(default_factory=list)
-    stats: dict[str, int] = Field(default_factory=dict)
-
-    def to_agent_state(self) -> AgentState:
-        return AgentState(
-            location_id=self.location_id,
-            money=self.money,
-            energy=self.energy,
-            inventory=dict(self.inventory),
-            notes=list(self.notes),
-            status_effects=list(self.status_effects),
-            stats=dict(self.stats),
-        )
-
-
 class ScenarioLocationSource(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -93,7 +70,7 @@ class ScenarioObjectSource(BaseModel):
     actionable: bool = False
     resource_content: str | None = None
     resource_file: str | None = None
-    action_effects: dict[str, "ScenarioObjectActionEffectSource"] = Field(default_factory=dict)
+    action_effects: dict[str, ObjectActionEffect] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def validate_resource_source(self) -> "ScenarioObjectSource":
@@ -117,57 +94,7 @@ class ScenarioObjectSource(BaseModel):
             readable=self.readable,
             actionable=self.actionable or bool(self.action_effects),
             resource_content=resource_content,
-            action_effects={key: effect.to_action_effect() for key, effect in self.action_effects.items()},
-        )
-
-
-class ScenarioActionCostSource(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    time_delta: int = 0
-    money_delta: int = 0
-    energy_delta: int = 0
-    inventory_delta: dict[str, int] = Field(default_factory=dict)
-
-    def to_action_cost(self) -> ActionCost:
-        return ActionCost(
-            time_delta=self.time_delta,
-            money_delta=self.money_delta,
-            energy_delta=self.energy_delta,
-            inventory_delta=dict(self.inventory_delta),
-        )
-
-
-class ScenarioObjectActionEffectSource(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    message: str
-    money_delta: int = 0
-    energy_delta: int = 0
-    inventory_delta: dict[str, int] = Field(default_factory=dict)
-    required_world_flags: dict[str, bool] = Field(default_factory=dict)
-    required_inventory: dict[str, int] = Field(default_factory=dict)
-    required_agent_stats: dict[str, int] = Field(default_factory=dict)
-    required_money: int = 0
-    agent_stat_deltas: dict[str, int] = Field(default_factory=dict)
-    set_visible_state: dict[str, Any] = Field(default_factory=dict)
-    set_world_flags: dict[str, bool] = Field(default_factory=dict)
-    move_to_location_id: str | None = None
-
-    def to_action_effect(self) -> ObjectActionEffect:
-        return ObjectActionEffect(
-            message=self.message,
-            money_delta=self.money_delta,
-            energy_delta=self.energy_delta,
-            inventory_delta=dict(self.inventory_delta),
-            required_world_flags=dict(self.required_world_flags),
-            required_inventory=dict(self.required_inventory),
-            required_agent_stats=dict(self.required_agent_stats),
-            required_money=self.required_money,
-            agent_stat_deltas=dict(self.agent_stat_deltas),
-            set_visible_state=deepcopy(self.set_visible_state),
-            set_world_flags=dict(self.set_world_flags),
-            move_to_location_id=self.move_to_location_id,
+            action_effects={key: effect.model_copy(deep=True) for key, effect in self.action_effects.items()},
         )
 
 
@@ -178,42 +105,6 @@ class ScenarioSkillSource(BaseModel):
     file: str
 
 
-class ScenarioEventRuleSource(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    event_id: str
-    required_world_flags: dict[str, bool] = Field(default_factory=dict)
-    set_world_flags: dict[str, bool] = Field(default_factory=dict)
-    set_object_visible_state: dict[str, dict[str, Any]] = Field(default_factory=dict)
-    trigger_once: bool = True
-
-    def to_event_rule(self) -> WorldEventRule:
-        return WorldEventRule(
-            event_id=self.event_id,
-            required_world_flags=dict(self.required_world_flags),
-            set_world_flags=dict(self.set_world_flags),
-            set_object_visible_state=deepcopy(self.set_object_visible_state),
-            trigger_once=self.trigger_once,
-        )
-
-
-class ScenarioTerminationConfigSource(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    max_steps: int | None = None
-    stop_on_zero_energy: bool = True
-    success_world_flags: list[str] = Field(default_factory=list)
-    failure_world_flags: list[str] = Field(default_factory=list)
-
-    def to_termination_config(self) -> TerminationConfig:
-        return TerminationConfig(
-            max_steps=self.max_steps,
-            stop_on_zero_energy=self.stop_on_zero_energy,
-            success_world_flags=list(self.success_world_flags),
-            failure_world_flags=list(self.failure_world_flags),
-        )
-
-
 class ScenarioConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -222,13 +113,10 @@ class ScenarioConfig(BaseModel):
     opening_briefing: str = ""
     public_rules: list[str] = Field(default_factory=list)
     initial_world_state: ScenarioInitialWorldState = Field(default_factory=ScenarioInitialWorldState)
-    initial_agent_state: ScenarioAgentStateSource
+    initial_agent_state: AgentState
     locations: list[ScenarioLocationSource] = Field(default_factory=list)
     objects: list[ScenarioObjectSource] = Field(default_factory=list)
     skills: list[ScenarioSkillSource] = Field(default_factory=list)
-    action_costs: dict[str, ScenarioActionCostSource] = Field(default_factory=dict)
-    event_rules: list[ScenarioEventRuleSource] = Field(default_factory=list)
-    termination_config: ScenarioTerminationConfigSource = Field(default_factory=ScenarioTerminationConfigSource)
-
-
-ScenarioObjectSource.model_rebuild(_types_namespace={"ScenarioObjectActionEffectSource": ScenarioObjectActionEffectSource})
+    action_costs: dict[str, ActionCost] = Field(default_factory=dict)
+    event_rules: list[WorldEventRule] = Field(default_factory=list)
+    termination_config: TerminationConfig = Field(default_factory=TerminationConfig)
