@@ -1,5 +1,5 @@
 from runtime.env import TownBenchEnv
-from engine.state import ObjectActionEffect, WorldEventRule
+from engine.state import ActionCost, ObjectActionEffect, WorldEventRule
 
 
 def test_move_to_updates_agent_location(minimal_world_state):
@@ -43,6 +43,7 @@ def test_check_status_returns_structured_agent_status_payload(minimal_world_stat
     env.reset()
     env.state.agent.inventory = {"apple": 2}
     env.state.agent.status_effects = ["focused"]
+    env.state.agent.stats = {"carry_limit": 3}
 
     result = env.step({"type": "check_status"})
 
@@ -55,7 +56,110 @@ def test_check_status_returns_structured_agent_status_payload(minimal_world_stat
         "inventory": {"apple": 2},
         "notes": [],
         "status_effects": ["focused"],
+        "stats": {"carry_limit": 3},
     }
+
+
+def test_call_action_required_agent_stats_blocks_execution(minimal_world_state):
+    env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
+    env.reset()
+    env.state.agent.stats = {"carry_limit": 2}
+    env.state.objects["counter"].actionable = True
+    env.state.objects["counter"].action_ids = ["lift_crate"]
+    env.state.objects["counter"].action_effects = {
+        "lift_crate": ObjectActionEffect(
+            message="Lifted the crate.",
+            required_agent_stats={"carry_limit": 3},
+            set_visible_state={"crate_moved": True},
+        )
+    }
+    env.step({"type": "move_to", "target_id": "market"})
+
+    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "lift_crate"}})
+
+    assert result.success is False
+    assert result.warnings == ["missing_prerequisites"]
+    assert env.state.agent.stats == {"carry_limit": 2}
+    assert env.state.objects["counter"].visible_state == {"open": True}
+
+
+def test_call_action_agent_stat_deltas_update_state_and_payload(minimal_world_state):
+    env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
+    env.reset()
+    env.state.agent.stats = {"carry_limit": 2}
+    env.state.objects["counter"].actionable = True
+    env.state.objects["counter"].action_ids = ["rent_cart"]
+    env.state.objects["counter"].action_effects = {
+        "rent_cart": ObjectActionEffect(
+            message="Rented a hand cart.",
+            money_delta=-4,
+            required_money=4,
+            agent_stat_deltas={"carry_limit": 3},
+        )
+    }
+    env.step({"type": "move_to", "target_id": "market"})
+
+    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "rent_cart"}})
+
+    assert result.success is True
+    assert env.state.agent.stats == {"carry_limit": 5}
+    assert result.data["stats"] == {"carry_limit": 5}
+
+
+def test_call_action_can_reduce_carry_limit_to_zero_without_dropping_the_stat(minimal_world_state):
+    env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
+    env.reset()
+    env.state.agent.stats = {"carry_limit": 1}
+    env.state.objects["counter"].actionable = True
+    env.state.objects["counter"].action_ids = ["disable_bag", "load_item"]
+    env.state.objects["counter"].action_effects = {
+        "disable_bag": ObjectActionEffect(
+            message="Disabled the bag.",
+            agent_stat_deltas={"carry_limit": -1},
+        ),
+        "load_item": ObjectActionEffect(
+            message="Tried to load one item.",
+            inventory_delta={"apple": 1},
+        ),
+    }
+    env.step({"type": "move_to", "target_id": "market"})
+
+    disabled = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "disable_bag"}})
+    blocked = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "load_item"}})
+
+    assert disabled.success is True
+    assert env.state.agent.stats == {"carry_limit": 0}
+    assert disabled.data["stats"] == {"carry_limit": 0}
+    assert blocked.success is False
+    assert blocked.warnings == ["inventory_capacity_exceeded"]
+    assert env.state.agent.inventory == {}
+
+
+def test_call_action_clamps_negative_carry_limit_to_zero(minimal_world_state):
+    env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
+    env.reset()
+    env.state.agent.stats = {"carry_limit": 1}
+    env.state.objects["counter"].actionable = True
+    env.state.objects["counter"].action_ids = ["over_disable_bag", "check_zero_gate"]
+    env.state.objects["counter"].action_effects = {
+        "over_disable_bag": ObjectActionEffect(
+            message="Over-disabled the bag.",
+            agent_stat_deltas={"carry_limit": -2},
+        ),
+        "check_zero_gate": ObjectActionEffect(
+            message="Zero-capacity gate passed.",
+            required_agent_stats={"carry_limit": 0},
+        ),
+    }
+    env.step({"type": "move_to", "target_id": "market"})
+
+    disabled = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "over_disable_bag"}})
+    gated = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "check_zero_gate"}})
+
+    assert disabled.success is True
+    assert env.state.agent.stats == {"carry_limit": 0}
+    assert disabled.data["stats"] == {"carry_limit": 0}
+    assert gated.success is True
 
 
 def test_inspect_returns_detached_object_payload(minimal_world_state):
@@ -193,6 +297,219 @@ def test_call_action_can_apply_money_delta_and_reports_net_step_delta(minimal_wo
     assert env.state.agent.money == 27
     assert result.data["money"] == 27
     assert env.state.objects["counter"].visible_state["last_sale"] == "snack"
+
+
+def test_inventory_capacity_is_unlimited_when_carry_limit_is_absent(minimal_world_state):
+    env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
+    env.reset()
+    env.state.objects["counter"].actionable = True
+    env.state.objects["counter"].action_ids = ["buy_bulk"]
+    env.state.objects["counter"].action_effects = {
+        "buy_bulk": ObjectActionEffect(
+            message="Bought a large bulk order.",
+            inventory_delta={"apple": 6},
+        )
+    }
+    env.step({"type": "move_to", "target_id": "market"})
+
+    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "buy_bulk"}})
+
+    assert result.success is True
+    assert env.state.agent.inventory == {"apple": 6}
+
+
+def test_object_action_inventory_delta_respects_carry_limit(minimal_world_state):
+    env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
+    env.reset()
+    env.state.agent.stats = {"carry_limit": 1}
+    env.state.objects["counter"].actionable = True
+    env.state.objects["counter"].action_ids = ["buy_bulk"]
+    env.state.objects["counter"].action_effects = {
+        "buy_bulk": ObjectActionEffect(
+            message="Bought a large bulk order.",
+            inventory_delta={"apple": 2},
+            set_visible_state={"sale": "closed"},
+        )
+    }
+    env.step({"type": "move_to", "target_id": "market"})
+
+    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "buy_bulk"}})
+
+    assert result.success is False
+    assert result.warnings == ["inventory_capacity_exceeded"]
+    assert env.state.agent.inventory == {}
+    assert env.state.objects["counter"].visible_state == {"open": True}
+
+
+def test_object_action_can_increase_carry_limit_and_add_inventory_in_same_step(minimal_world_state):
+    env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
+    env.reset()
+    env.state.agent.stats = {"carry_limit": 1}
+    env.state.objects["counter"].actionable = True
+    env.state.objects["counter"].action_ids = ["upgrade_and_load"]
+    env.state.objects["counter"].action_effects = {
+        "upgrade_and_load": ObjectActionEffect(
+            message="Expanded the bag and loaded produce.",
+            agent_stat_deltas={"carry_limit": 1},
+            inventory_delta={"apple": 2},
+        )
+    }
+    env.step({"type": "move_to", "target_id": "market"})
+
+    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "upgrade_and_load"}})
+
+    assert result.success is True
+    assert env.state.agent.stats == {"carry_limit": 2}
+    assert env.state.agent.inventory == {"apple": 2}
+
+
+def test_capacity_decrease_is_validated_against_projected_carry_limit(minimal_world_state):
+    env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
+    env.reset()
+    env.state.agent.stats = {"carry_limit": 3}
+    env.state.agent.inventory = {"apple": 2}
+    env.state.objects["counter"].actionable = True
+    env.state.objects["counter"].action_ids = ["shrink_bag"]
+    env.state.objects["counter"].action_effects = {
+        "shrink_bag": ObjectActionEffect(
+            message="Shrank the bag.",
+            agent_stat_deltas={"carry_limit": -2},
+            set_visible_state={"bag_size": "small"},
+        )
+    }
+    env.step({"type": "move_to", "target_id": "market"})
+
+    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "shrink_bag"}})
+
+    assert result.success is False
+    assert result.warnings == ["inventory_capacity_exceeded"]
+    assert env.state.agent.stats == {"carry_limit": 3}
+    assert env.state.agent.inventory == {"apple": 2}
+    assert env.state.objects["counter"].visible_state == {"open": True}
+
+
+def test_action_cost_inventory_delta_respects_carry_limit(minimal_world_state):
+    env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
+    env.reset()
+    env.state.agent.stats = {"carry_limit": 0}
+    env.state.action_costs["check_status"] = ActionCost(inventory_delta={"apple": 1})
+
+    result = env.step({"type": "check_status"})
+
+    assert result.success is False
+    assert result.warnings == ["inventory_capacity_exceeded"]
+    assert result.inventory_delta == {}
+    assert env.state.agent.inventory == {}
+
+
+def test_unrelated_actions_do_not_soft_lock_invalid_over_capacity_runtime_state(minimal_world_state):
+    env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
+    env.reset()
+    env.state.agent.stats = {"carry_limit": 1}
+    env.state.agent.inventory = {"apple": 2}
+
+    status_result = env.step({"type": "check_status"})
+    move_result = env.step({"type": "move_to", "target_id": "market"})
+
+    assert status_result.success is True
+    assert status_result.data["agent_status"]["inventory"] == {"apple": 2}
+    assert move_result.success is True
+    assert env.state.agent.location_id == "market"
+
+
+def test_call_action_inventory_validation_uses_net_step_delta(minimal_world_state):
+    env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
+    env.reset()
+    env.state.agent.stats = {"carry_limit": 1}
+    env.state.agent.inventory = {"apple": 1}
+    env.state.action_costs["call_action"] = ActionCost(inventory_delta={"apple": -1})
+    env.state.objects["counter"].actionable = True
+    env.state.objects["counter"].action_ids = ["swap_item"]
+    env.state.objects["counter"].action_effects = {
+        "swap_item": ObjectActionEffect(
+            message="Swapped the carried item.",
+            inventory_delta={"banana": 1},
+        )
+    }
+    env.step({"type": "move_to", "target_id": "market"})
+
+    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "swap_item"}})
+
+    assert result.success is True
+    assert result.inventory_delta == {"banana": 1, "apple": -1}
+    assert env.state.agent.inventory == {"banana": 1}
+
+
+def test_call_action_net_inventory_commit_uses_merged_delta_for_same_item(minimal_world_state):
+    env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
+    env.reset()
+    env.state.agent.inventory = {"apple": 1}
+    env.state.action_costs["call_action"] = ActionCost(inventory_delta={"apple": 1})
+    env.state.objects["counter"].actionable = True
+    env.state.objects["counter"].action_ids = ["consume_and_rebate"]
+    env.state.objects["counter"].action_effects = {
+        "consume_and_rebate": ObjectActionEffect(
+            message="Consumed apples with a rebate.",
+            inventory_delta={"apple": -2},
+        )
+    }
+    env.step({"type": "move_to", "target_id": "market"})
+
+    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "consume_and_rebate"}})
+
+    assert result.success is True
+    assert result.inventory_delta == {"apple": -1}
+    assert env.state.agent.inventory == {}
+
+
+def test_call_action_money_validation_uses_net_step_delta(minimal_world_state):
+    env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
+    env.reset()
+    env.state.agent.money = 1
+    env.state.action_costs["call_action"] = ActionCost(money_delta=2)
+    env.state.objects["counter"].actionable = True
+    env.state.objects["counter"].action_ids = ["rebated_fee"]
+    env.state.objects["counter"].action_effects = {
+        "rebated_fee": ObjectActionEffect(
+            message="Paid a fee with a matching rebate.",
+            money_delta=-2,
+        )
+    }
+    env.step({"type": "move_to", "target_id": "market"})
+
+    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "rebated_fee"}})
+
+    assert result.success is True
+    assert result.money_delta == 0
+    assert env.state.agent.money == 1
+
+
+def test_combined_object_and_action_cost_inventory_delta_rolls_back_state(minimal_world_state):
+    env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
+    env.reset()
+    env.state.agent.stats = {"carry_limit": 1}
+    env.state.action_costs["call_action"] = ActionCost(inventory_delta={"bonus_ticket": 1})
+    env.state.objects["counter"].actionable = True
+    env.state.objects["counter"].action_ids = ["buy_box"]
+    env.state.objects["counter"].action_effects = {
+        "buy_box": ObjectActionEffect(
+            message="Bought one boxed order.",
+            inventory_delta={"apple": 1},
+            set_visible_state={"sale": "posted"},
+            set_world_flags={"box_bought": True},
+        )
+    }
+    env.step({"type": "move_to", "target_id": "market"})
+
+    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "buy_box"}})
+
+    assert result.success is False
+    assert result.warnings == ["inventory_capacity_exceeded"]
+    assert result.inventory_delta == {}
+    assert env.state.agent.inventory == {}
+    assert env.state.agent.money == 20
+    assert env.state.world_flags == {}
+    assert env.state.objects["counter"].visible_state == {"open": True}
 
 
 def test_step_payload_visible_state_is_detached_from_runtime_state(minimal_world_state):

@@ -97,7 +97,7 @@ _ACTION_SPEC_LIST: tuple[ActionSpec, ...] = (
         action_type="check_status",
         tool=ActionToolSpec(
             name="check_status",
-            description="Check the agent status, including location, money, energy, inventory and notes.",
+            description="Check the agent status, including location, money, energy, inventory, notes and stats.",
             parameters=(),
             build_action=lambda: Action(type="check_status"),
         ),

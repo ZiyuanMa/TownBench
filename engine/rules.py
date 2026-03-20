@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Mapping
 
 from engine.state import ActionCost, TerminationConfig, WorldState
 
@@ -27,6 +28,61 @@ def merge_inventory_deltas(primary: dict[str, int], secondary: dict[str, int]) -
         if merged[item_id] == 0:
             merged.pop(item_id)
     return merged
+
+
+def project_inventory(inventory: Mapping[str, int], inventory_delta: Mapping[str, int]) -> dict[str, int] | None:
+    projected = dict(inventory)
+    for item_id, delta in inventory_delta.items():
+        new_quantity = projected.get(item_id, 0) + delta
+        if new_quantity < 0:
+            return None
+        if new_quantity == 0:
+            projected.pop(item_id, None)
+            continue
+        projected[item_id] = new_quantity
+    return projected
+
+
+def inventory_load(inventory: Mapping[str, int]) -> int:
+    return sum(quantity for quantity in inventory.values() if quantity > 0)
+
+
+def inventory_capacity(state: WorldState) -> int | None:
+    carry_limit = state.agent.stats.get("carry_limit")
+    if carry_limit is None:
+        return None
+    return max(0, carry_limit)
+
+
+def projected_inventory_capacity(
+    state: WorldState,
+    agent_stat_deltas: Mapping[str, int] | None = None,
+) -> int | None:
+    stat_deltas = agent_stat_deltas or {}
+    carry_limit = state.agent.stats.get("carry_limit")
+    carry_limit_delta = stat_deltas.get("carry_limit", 0)
+    if carry_limit is None and carry_limit_delta == 0:
+        return None
+    return max(0, (carry_limit or 0) + carry_limit_delta)
+
+
+def validate_inventory_delta(
+    state: WorldState,
+    inventory_delta: Mapping[str, int],
+    *,
+    agent_stat_deltas: Mapping[str, int] | None = None,
+) -> str | None:
+    projected_inventory = project_inventory(state.agent.inventory, inventory_delta)
+    if projected_inventory is None:
+        return "insufficient_inventory"
+
+    carry_limit = projected_inventory_capacity(state, agent_stat_deltas)
+    carry_limit_changed = bool((agent_stat_deltas or {}).get("carry_limit", 0))
+    if not inventory_delta and not carry_limit_changed:
+        return None
+    if carry_limit is not None and inventory_load(projected_inventory) > carry_limit:
+        return "inventory_capacity_exceeded"
+    return None
 
 
 def apply_world_rules(state: WorldState) -> list[str]:

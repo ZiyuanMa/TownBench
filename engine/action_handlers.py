@@ -15,6 +15,7 @@ def _success(
     money_delta: int = 0,
     energy_delta: int = 0,
     inventory_delta: dict[str, int] | None = None,
+    agent_stat_deltas: dict[str, int] | None = None,
 ) -> ActionExecution:
     return ActionExecution(
         success=True,
@@ -23,6 +24,7 @@ def _success(
         money_delta=money_delta,
         energy_delta=energy_delta,
         inventory_delta=dict(inventory_delta or {}),
+        agent_stat_deltas=dict(agent_stat_deltas or {}),
     )
 
 
@@ -167,20 +169,15 @@ def _handle_call_action(state: WorldState, action: Action) -> ActionExecution:
             "missing_inventory",
             f"Action `{action_name}` on `{action.target_id}` requires inventory items that are not available.",
         )
+    if not _has_required_agent_stats(state, effect.required_agent_stats):
+        return _failure(
+            "missing_prerequisites",
+            f"Action `{action_name}` on `{action.target_id}` requires agent stats that are not satisfied.",
+        )
     if state.agent.money < effect.required_money:
         return _failure(
             "insufficient_money",
             f"Action `{action_name}` on `{action.target_id}` requires at least {effect.required_money} money.",
-        )
-    if state.agent.money + effect.money_delta < 0:
-        return _failure(
-            "insufficient_money",
-            f"Action `{action_name}` on `{action.target_id}` would reduce money below zero.",
-        )
-    if not _can_apply_inventory_delta(state, effect.inventory_delta):
-        return _failure(
-            "insufficient_inventory",
-            f"Action `{action_name}` on `{action.target_id}` would reduce inventory below zero.",
         )
     if effect.move_to_location_id and effect.move_to_location_id not in state.locations:
         return _failure(
@@ -190,6 +187,7 @@ def _handle_call_action(state: WorldState, action: Action) -> ActionExecution:
 
     world_object.visible_state.update(effect.set_visible_state)
     state.world_flags.update(effect.set_world_flags)
+    _apply_agent_stat_deltas(state, effect.agent_stat_deltas)
     apply_state_delta(
         state,
         ActionCost(
@@ -211,11 +209,13 @@ def _handle_call_action(state: WorldState, action: Action) -> ActionExecution:
             "money": current_state.agent.money,
             "energy": current_state.agent.energy,
             "inventory": dict(current_state.agent.inventory),
+            "stats": dict(current_state.agent.stats),
             "location_id": current_state.agent.location_id,
         },
         money_delta=effect.money_delta,
         energy_delta=effect.energy_delta,
         inventory_delta=effect.inventory_delta,
+        agent_stat_deltas=effect.agent_stat_deltas,
     )
 
 
@@ -241,7 +241,7 @@ def _serialize_agent_status(state: WorldState) -> dict[str, Any]:
     return {
         "current_time": state.current_time,
         **state.agent.model_dump(
-            include={"location_id", "money", "energy", "inventory", "notes", "status_effects"}
+            include={"location_id", "money", "energy", "inventory", "notes", "status_effects", "stats"}
         ),
     }
 
@@ -250,8 +250,16 @@ def _has_required_inventory(state: WorldState, required_inventory: dict[str, int
     return all(state.agent.inventory.get(item_id, 0) >= required for item_id, required in required_inventory.items())
 
 
-def _can_apply_inventory_delta(state: WorldState, inventory_delta: dict[str, int]) -> bool:
-    for item_id, delta in inventory_delta.items():
-        if state.agent.inventory.get(item_id, 0) + delta < 0:
-            return False
-    return True
+def _has_required_agent_stats(state: WorldState, required_agent_stats: dict[str, int]) -> bool:
+    return all(state.agent.stats.get(stat_id, 0) >= required for stat_id, required in required_agent_stats.items())
+
+
+def _apply_agent_stat_deltas(state: WorldState, agent_stat_deltas: dict[str, int]) -> None:
+    for stat_id, delta in agent_stat_deltas.items():
+        new_value = state.agent.stats.get(stat_id, 0) + delta
+        if stat_id == "carry_limit":
+            new_value = max(0, new_value)
+        if new_value == 0 and stat_id != "carry_limit":
+            state.agent.stats.pop(stat_id, None)
+            continue
+        state.agent.stats[stat_id] = new_value

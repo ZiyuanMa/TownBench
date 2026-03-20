@@ -1,0 +1,8 @@
+Daily trade board, copied by the morning clerk:
+
+- Meal loop: buy `meal_ingredients` for 2, prep one `meal_box`, deliver it to the canteen for 4
+- Tea loop: `tea_bundle` costs 3, `fuel_canister` costs 2, `packaging_sleeve` costs 1, and one `packed_tea` sells for 10
+- Repair loop: one `repair_part` costs 8, and the finished repair ticket pays 15 at the service depot
+- Clearance crates only cost 1, but they fill four carry slots with junk
+
+If cash is tight, the kitchen contract is the safest way to rebuild working capital.

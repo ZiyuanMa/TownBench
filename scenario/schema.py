@@ -147,7 +147,9 @@ class ScenarioObjectActionEffectSource(BaseModel):
     inventory_delta: dict[str, int] = Field(default_factory=dict)
     required_world_flags: dict[str, bool] = Field(default_factory=dict)
     required_inventory: dict[str, int] = Field(default_factory=dict)
+    required_agent_stats: dict[str, int] = Field(default_factory=dict)
     required_money: int = 0
+    agent_stat_deltas: dict[str, int] = Field(default_factory=dict)
     set_visible_state: dict[str, Any] = Field(default_factory=dict)
     set_world_flags: dict[str, bool] = Field(default_factory=dict)
     move_to_location_id: str | None = None
@@ -160,7 +162,9 @@ class ScenarioObjectActionEffectSource(BaseModel):
             inventory_delta=dict(self.inventory_delta),
             required_world_flags=dict(self.required_world_flags),
             required_inventory=dict(self.required_inventory),
+            required_agent_stats=dict(self.required_agent_stats),
             required_money=self.required_money,
+            agent_stat_deltas=dict(self.agent_stat_deltas),
             set_visible_state=deepcopy(self.set_visible_state),
             set_world_flags=dict(self.set_world_flags),
             move_to_location_id=self.move_to_location_id,

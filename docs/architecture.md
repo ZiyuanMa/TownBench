@@ -56,9 +56,10 @@ TransitionEngine.step()                        │
      │                                         │
      ├─ 1. normalize_action()   解析+校验       │
      ├─ 2. handler(state)       执行动作逻辑     │
-     ├─ 3. apply_action_costs() 扣除时间/能量    │
-     ├─ 4. apply_world_rules()  触发事件规则     │
-     ├─ 5. evaluate_termination() 检查终止条件   │
+     ├─ 3. prevalidate deltas    校验钱/库存/容量 │
+     ├─ 4. apply_action_costs() 扣除时间/能量    │
+     ├─ 5. apply_world_rules()  触发事件规则     │
+     ├─ 6. evaluate_termination() 检查终止条件   │
      ▼                                         │
 TransitionOutcome                              │
      ├─ new WorldState                         │
@@ -72,7 +73,7 @@ TransitionOutcome                              │
 
 环境的完整内部状态，包含：
 
-- `agent: AgentState` — 位置、金钱、能量、背包、笔记
+- `agent: AgentState` — 位置、金钱、能量、背包、笔记和数值型 `stats`
 - `locations: dict[str, Location]` — 地图节点及连接
 - `objects: dict[str, WorldObject]` — 可交互物体及其动作效果
 - `skills: dict[str, Skill]` — 可加载的技能文档
@@ -98,7 +99,8 @@ TransitionOutcome                              │
 继续作为 action 注册、查询和对外导入的统一入口，避免上层模块感知内部拆分。
 
 `call_action` 是最通用的动作——它调用 `WorldObject` 上暴露的自定义 action，
-支持前置条件检查（world_flags、inventory、money）和副作用（状态变更、传送等）。
+支持前置条件检查（world_flags、inventory、money、agent stats）和副作用
+（状态变更、数值 stats 增减、传送等）。
 
 ### Observation (`engine/observation.py`)
 
@@ -106,17 +108,18 @@ Agent 可见的信息切片，**不暴露**完整 WorldState。仅包含：
 - 当前位置信息和连接
 - 当前位置的可见物体（名称、摘要、visible_state、action_ids）
 - 可用技能列表（仅 id + 名称 + 描述，不含完整 content）
-- Agent 自身状态
+- Agent 自身状态，包括 `stats`
 
 ### TransitionEngine (`engine/transition.py`)
 
 无状态的转换引擎。`step()` 方法：
 1. Deep copy 输入 state（保证不可变语义）
 2. 执行 action handler
-3. 成功时扣除 action cost
-4. 运行世界事件规则
-5. 检查终止条件
-6. 返回 `TransitionOutcome`（新 state + StepResult + TraceEntry）
+3. 在统一提交前校验净 money / inventory 变化，并应用 `carry_limit`
+4. 成功时扣除 action cost
+5. 运行世界事件规则
+6. 检查终止条件
+7. 返回 `TransitionOutcome`（新 state + StepResult + TraceEntry）
 
 ### TownBenchEnv (`runtime/env.py`)
 
@@ -131,6 +134,7 @@ Agent 可见的信息切片，**不暴露**完整 WorldState。仅包含：
 - 唯一性检查（location/object/skill/event ID）
 - 引用完整性（links 指向已知 location、object 在已知 location）
 - action_effects 不允许存在未暴露的动作
+- 对象动作支持 `required_agent_stats` 和 `agent_stat_deltas`
 - event_rules 不允许引用未知 object
 - 技能文件必须有 YAML frontmatter（name + description）
 
@@ -168,4 +172,5 @@ Agent 可见的信息切片，**不暴露**完整 WorldState。仅包含：
 - `test_scorer.py` — 评分计算
 - `test_scenario_loader.py` — 场景加载和所有校验规则
 - `test_phase1_scenario.py` — phase1_town 场景的集成测试
+- `test_phase2_scenario.py` — phase2_town 经营循环、扩容和恢复路径的集成测试
 - `test_openai_baseline.py` — Baseline 工具和 runner（使用 Fake 替身）

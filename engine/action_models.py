@@ -37,6 +37,7 @@ class ActionExecution:
     money_delta: int = 0
     energy_delta: int = 0
     inventory_delta: dict[str, int] | None = None
+    agent_stat_deltas: dict[str, int] | None = None
     payload_builder: PayloadBuilder | None = None
 
 

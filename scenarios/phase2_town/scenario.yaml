@@ -1,0 +1,408 @@
+scenario_id: phase2_town
+seed: 29
+
+opening_briefing: "You arrived in a production district where money comes from keeping small operating loops running instead of taking one-off jobs. Carrying space is limited, supplies must be replenished, and bad purchases can lock up your working capital until you clear them."
+public_rules:
+  - "Actions cost time and most actions cost energy."
+  - "Your bag starts with a visible carry limit based on total item count."
+  - "Tea production needs fresh fuel and packaging each cycle."
+  - "Meal prep is the cheapest recovery loop when cash is tight."
+  - "Repair work pays better, but you need enough money to buy parts first."
+  - "The storage room sells one permanent locker upgrade that increases carry capacity."
+
+initial_world_state:
+  current_time: "Day 1, 08:00"
+  world_flags:
+    locker_upgrade_purchased: false
+
+initial_agent_state:
+  location_id: plaza
+  money: 14
+  energy: 80
+  stats:
+    carry_limit: 3
+
+locations:
+  - location_id: plaza
+    name: Plaza
+    description: "A compact public square connecting the production streets, storage office and depot lane."
+    links: ["market", "storage_room", "service_depot"]
+    tags: ["hub", "public"]
+
+  - location_id: market
+    name: Market
+    description: "A busy trade strip where inputs are bought cheaply and finished goods are sold."
+    links: ["plaza", "workshop", "canteen", "supply_shop", "fuel_counter"]
+    tags: ["trade"]
+
+  - location_id: workshop
+    name: Workshop
+    description: "A shared production floor with brewing, packing, meal assembly and repair benches."
+    links: ["market", "canteen", "supply_shop", "service_depot"]
+    tags: ["craft"]
+
+  - location_id: canteen
+    name: Canteen
+    description: "A practical kitchen that buys prepared meals and sells hot recovery food."
+    links: ["market", "workshop"]
+    tags: ["food", "recovery"]
+
+  - location_id: supply_shop
+    name: Supply Shop
+    description: "A narrow shop selling sleeves, parts and other operating supplies."
+    links: ["market", "workshop", "fuel_counter"]
+    tags: ["supplies"]
+
+  - location_id: storage_room
+    name: Storage Room
+    description: "A clerk-run room where extra locker space can be purchased once."
+    links: ["plaza"]
+    tags: ["capacity"]
+
+  - location_id: service_depot
+    name: Service Depot
+    description: "A pickup office for finished repair work and signed service tickets."
+    links: ["plaza", "workshop"]
+    tags: ["service"]
+
+  - location_id: fuel_counter
+    name: Fuel Counter
+    description: "A small counter dedicated to fresh fuel canisters and usage notices."
+    links: ["market", "supply_shop"]
+    tags: ["fuel"]
+
+objects:
+  - object_id: operations_board
+    name: Operations Board
+    object_type: board
+    location_id: plaza
+    summary: "A handwritten board summarizing the district's active operating loops."
+    readable: true
+    resource_file: resources/operations_board.txt
+
+  - object_id: tea_wholesaler
+    name: Tea Wholesaler
+    object_type: stall
+    location_id: market
+    summary: "A wholesaler selling tea bundles one batch at a time."
+    visible_state:
+      tea_bundle_price: 4
+    actionable: true
+    action_ids: ["buy_tea_bundle"]
+    action_effects:
+      buy_tea_bundle:
+        message: "You bought one tea bundle."
+        required_money: 4
+        money_delta: -4
+        inventory_delta:
+          tea_bundle: 1
+
+  - object_id: ingredient_seller
+    name: Ingredient Seller
+    object_type: stall
+    location_id: market
+    summary: "A seller offering the cheapest meal ingredients in town."
+    visible_state:
+      meal_ingredients_price: 2
+    actionable: true
+    action_ids: ["buy_meal_ingredients"]
+    action_effects:
+      buy_meal_ingredients:
+        message: "You bought one set of meal ingredients."
+        required_money: 2
+        money_delta: -2
+        inventory_delta:
+          meal_ingredients: 1
+
+  - object_id: bargain_bin
+    name: Bargain Bin
+    object_type: bin
+    location_id: market
+    summary: "A bin of dusty clearance goods that are cheap but tie up bag space."
+    visible_state:
+      dusty_trinket_price: 1
+      buyer_bid: 0
+    actionable: true
+    action_ids: ["buy_dusty_trinket"]
+    action_effects:
+      buy_dusty_trinket:
+        message: "You bought one dusty trinket."
+        required_money: 1
+        money_delta: -1
+        inventory_delta:
+          dusty_trinket: 1
+
+  - object_id: tea_batch_crate
+    name: Tea Batch Crate
+    object_type: crate
+    location_id: market
+    summary: "A bundled crate of tea inputs that only fits once your carrying capacity is expanded."
+    visible_state:
+      batch_price: 11
+      batch_load: 5
+    actionable: true
+    action_ids: ["buy_tea_batch"]
+    action_effects:
+      buy_tea_batch:
+        message: "You bought a bundled tea batch with two tea bundles, two sleeves and one fuel canister."
+        required_money: 11
+        money_delta: -11
+        inventory_delta:
+          tea_bundle: 2
+          packaging_sleeve: 2
+          fuel_canister: 1
+
+  - object_id: goods_buyer
+    name: Goods Buyer
+    object_type: buyer
+    location_id: market
+    summary: "A buyer who pays well for packed tea and barely anything for bad stock."
+    visible_state:
+      packed_tea_payout: 14
+      dusty_trinket_payout: 0
+    actionable: true
+    action_ids: ["sell_packed_tea", "sell_dusty_trinket"]
+    action_effects:
+      sell_packed_tea:
+        message: "You sold one packed tea lot."
+        required_inventory:
+          packed_tea: 1
+        money_delta: 14
+        inventory_delta:
+          packed_tea: -1
+      sell_dusty_trinket:
+        message: "You cleared one dusty trinket for almost nothing."
+        required_inventory:
+          dusty_trinket: 1
+        inventory_delta:
+          dusty_trinket: -1
+
+  - object_id: tea_station
+    name: Tea Station
+    object_type: station
+    location_id: workshop
+    summary: "A brewing station that consumes both tea bundles and fresh fuel."
+    visible_state:
+      fuel_per_batch: 1
+    actionable: true
+    action_ids: ["brew_tea"]
+    action_effects:
+      brew_tea:
+        message: "You brewed one tea bundle into prepared tea."
+        required_inventory:
+          tea_bundle: 1
+          fuel_canister: 1
+        inventory_delta:
+          tea_bundle: -1
+          fuel_canister: -1
+          brewed_tea: 1
+
+  - object_id: packaging_table
+    name: Packaging Table
+    object_type: table
+    location_id: workshop
+    summary: "A table for sealing brewed tea into sale-ready lots."
+    visible_state:
+      sleeve_per_batch: 1
+    actionable: true
+    action_ids: ["pack_tea"]
+    action_effects:
+      pack_tea:
+        message: "You packed one brewed tea lot."
+        required_inventory:
+          brewed_tea: 1
+          packaging_sleeve: 1
+        inventory_delta:
+          brewed_tea: -1
+          packaging_sleeve: -1
+          packed_tea: 1
+
+  - object_id: meal_prep_table
+    name: Meal Prep Table
+    object_type: table
+    location_id: workshop
+    summary: "A prep table for turning cheap ingredients into deliverable meal boxes."
+    actionable: true
+    action_ids: ["assemble_meal_box"]
+    action_effects:
+      assemble_meal_box:
+        message: "You assembled one meal box."
+        required_inventory:
+          meal_ingredients: 1
+        inventory_delta:
+          meal_ingredients: -1
+          meal_box: 1
+
+  - object_id: repair_bench
+    name: Repair Bench
+    object_type: bench
+    location_id: workshop
+    summary: "A bench where paid service jobs are completed after you bring the right part."
+    visible_state:
+      service_fee: 16
+    actionable: true
+    action_ids: ["service_kettle"]
+    action_effects:
+      service_kettle:
+        message: "You completed one depot repair and received a signed service ticket."
+        required_inventory:
+          repair_part: 1
+        inventory_delta:
+          repair_part: -1
+          serviced_device_ticket: 1
+
+  - object_id: meal_counter
+    name: Meal Counter
+    object_type: counter
+    location_id: canteen
+    summary: "A kitchen counter buying finished meal boxes and selling hot staff meals."
+    visible_state:
+      meal_box_payout: 5
+      hot_meal_price: 4
+    actionable: true
+    action_ids: ["sell_meal_box", "buy_hot_meal"]
+    action_effects:
+      sell_meal_box:
+        message: "You delivered one meal box to the canteen kitchen."
+        required_inventory:
+          meal_box: 1
+        money_delta: 5
+        inventory_delta:
+          meal_box: -1
+      buy_hot_meal:
+        message: "You bought a hot meal and recovered energy."
+        required_money: 4
+        money_delta: -4
+        energy_delta: 26
+
+  - object_id: supply_counter
+    name: Supply Counter
+    object_type: counter
+    location_id: supply_shop
+    summary: "A counter selling packaging sleeves and repair parts."
+    visible_state:
+      packaging_sleeve_price: 1
+      repair_part_price: 6
+    actionable: true
+    action_ids: ["buy_packaging_sleeve", "buy_repair_part"]
+    action_effects:
+      buy_packaging_sleeve:
+        message: "You bought one packaging sleeve."
+        required_money: 1
+        money_delta: -1
+        inventory_delta:
+          packaging_sleeve: 1
+      buy_repair_part:
+        message: "You bought one repair part."
+        required_money: 6
+        money_delta: -6
+        inventory_delta:
+          repair_part: 1
+
+  - object_id: locker_desk
+    name: Locker Desk
+    object_type: desk
+    location_id: storage_room
+    summary: "A storage clerk offering one permanent locker upgrade for the current run."
+    visible_state:
+      upgrade_price: 6
+      upgrade_status: available
+    actionable: true
+    action_ids: ["buy_locker_upgrade"]
+    action_effects:
+      buy_locker_upgrade:
+        message: "You paid for the locker upgrade and your carry limit increased by 2."
+        required_money: 6
+        required_world_flags:
+          locker_upgrade_purchased: false
+        money_delta: -6
+        agent_stat_deltas:
+          carry_limit: 2
+        set_visible_state:
+          upgrade_status: purchased
+        set_world_flags:
+          locker_upgrade_purchased: true
+
+  - object_id: shelf_space_ledger
+    name: Shelf Space Ledger
+    object_type: ledger
+    location_id: storage_room
+    summary: "A ledger listing the cost and effect of the locker upgrade."
+    readable: true
+    resource_file: resources/shelf_space_ledger.txt
+
+  - object_id: pickup_clerk
+    name: Pickup Clerk
+    object_type: clerk
+    location_id: service_depot
+    summary: "A depot clerk who pays out signed service tickets."
+    visible_state:
+      serviced_device_ticket_payout: 16
+    actionable: true
+    action_ids: ["collect_service_fee"]
+    action_effects:
+      collect_service_fee:
+        message: "You handed over the service ticket and collected the repair payout."
+        required_inventory:
+          serviced_device_ticket: 1
+        money_delta: 16
+        inventory_delta:
+          serviced_device_ticket: -1
+
+  - object_id: repair_queue
+    name: Repair Queue
+    object_type: board
+    location_id: service_depot
+    summary: "A board showing the standing payout for finished repair tickets."
+    readable: true
+    resource_file: resources/repair_queue.txt
+
+  - object_id: fuel_rack
+    name: Fuel Rack
+    object_type: rack
+    location_id: fuel_counter
+    summary: "A rack of fresh fuel canisters for the tea station."
+    visible_state:
+      fuel_canister_price: 2
+    actionable: true
+    action_ids: ["buy_fuel_canister"]
+    action_effects:
+      buy_fuel_canister:
+        message: "You bought one fuel canister."
+        required_money: 2
+        money_delta: -2
+        inventory_delta:
+          fuel_canister: 1
+
+  - object_id: usage_notice
+    name: Usage Notice
+    object_type: notice
+    location_id: fuel_counter
+    summary: "A short operations note about fuel usage and tea margins."
+    readable: true
+    resource_file: resources/usage_notice.txt
+
+skills:
+  - skill_id: tea_operations
+    file: skills/tea_operations.md
+  - skill_id: cashflow_recovery
+    file: skills/cashflow_recovery.md
+  - skill_id: service_contracts
+    file: skills/service_contracts.md
+
+action_costs:
+  move_to:
+    time_delta: 12
+    energy_delta: -3
+  open_resource:
+    time_delta: 2
+  load_skill:
+    time_delta: 4
+    energy_delta: -1
+  call_action:
+    time_delta: 8
+    energy_delta: -4
+
+termination_config:
+  max_steps: 40
+  stop_on_zero_energy: true

@@ -30,6 +30,18 @@ def test_observation_visible_state_is_detached_from_runtime_state(minimal_world_
     assert env.state.objects["bulletin"].visible_state["nested"]["tags"] == ["public"]
 
 
+def test_observation_includes_agent_stats_and_detaches_them(minimal_world_state):
+    state = minimal_world_state.model_copy(deep=True)
+    state.agent.stats = {"carry_limit": 4}
+    env = TownBenchEnv(state)
+
+    observation = env.reset()
+    observation.agent.stats["carry_limit"] = 99
+
+    assert observation.agent.stats == {"carry_limit": 99}
+    assert env.state.agent.stats == {"carry_limit": 4}
+
+
 def test_inspect_requires_current_location_access(minimal_world_state):
     env = TownBenchEnv(minimal_world_state)
     env.reset()

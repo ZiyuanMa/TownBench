@@ -15,6 +15,7 @@ class AgentObservation(BaseModel):
     inventory: dict[str, int] = Field(default_factory=dict)
     notes: list[str] = Field(default_factory=list)
     status_effects: list[str] = Field(default_factory=list)
+    stats: dict[str, int] = Field(default_factory=dict)
 
 
 class LocationObservation(BaseModel):
@@ -56,6 +57,7 @@ def _project_agent(agent: AgentState) -> AgentObservation:
         inventory=dict(agent.inventory),
         notes=list(agent.notes),
         status_effects=list(agent.status_effects),
+        stats=dict(agent.stats),
     )
 
 

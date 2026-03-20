@@ -1,0 +1,8 @@
+Repair queue notice:
+
+- Standard commuter kettle service ticket pays 16 coins
+- The workshop bench issues a signed `serviced_device_ticket`
+- The depot only pays for completed tickets, not loose parts
+- Repair parts are sold at the supply counter for 6 coins
+
+This is the best single-loop margin in the district, but it requires working capital up front.

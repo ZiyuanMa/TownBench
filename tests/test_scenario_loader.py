@@ -417,6 +417,112 @@ objects:
     assert second_nested["notes"] == ["ready"]
 
 
+def test_loader_parses_agent_stat_fields_on_object_actions(tmp_path):
+    scenario_file = tmp_path / "scenario.yaml"
+    scenario_file.write_text(
+        """
+scenario_id: stats_action_effects
+initial_agent_state:
+  location_id: plaza
+  stats:
+    carry_limit: 2
+locations:
+  - location_id: plaza
+    name: Plaza
+    description: A plaza.
+objects:
+  - object_id: locker_desk
+    name: Locker Desk
+    object_type: desk
+    location_id: plaza
+    summary: A storage service counter.
+    action_ids: [upgrade_locker]
+    actionable: true
+    action_effects:
+      upgrade_locker:
+        message: Locker upgraded.
+        required_agent_stats:
+          carry_limit: 2
+        agent_stat_deltas:
+          carry_limit: 3
+        set_world_flags:
+          locker_upgraded: true
+""".strip(),
+        encoding="utf-8",
+    )
+
+    state = load_scenario(scenario_file)
+    effect = state.objects["locker_desk"].action_effects["upgrade_locker"]
+
+    assert state.agent.stats == {"carry_limit": 2}
+    assert effect.required_agent_stats == {"carry_limit": 2}
+    assert effect.agent_stat_deltas == {"carry_limit": 3}
+    assert effect.set_world_flags == {"locker_upgraded": True}
+
+
+def test_phase2_loader_authors_locker_upgrade_as_one_time_gated_capacity_increase():
+    scenario_path = Path(__file__).resolve().parents[1] / "scenarios" / "phase2_town" / "scenario.yaml"
+
+    state = load_scenario(scenario_path)
+    effect = state.objects["locker_desk"].action_effects["buy_locker_upgrade"]
+
+    assert state.agent.stats == {"carry_limit": 3}
+    assert state.world_flags["locker_upgrade_purchased"] is False
+    assert effect.required_world_flags == {"locker_upgrade_purchased": False}
+    assert effect.agent_stat_deltas == {"carry_limit": 2}
+    assert effect.set_world_flags == {"locker_upgrade_purchased": True}
+
+
+def test_loader_rejects_initial_agent_inventory_that_exceeds_carry_limit(tmp_path):
+    scenario_file = tmp_path / "scenario.yaml"
+    scenario_file.write_text(
+        """
+scenario_id: broken
+initial_agent_state:
+  location_id: plaza
+  inventory:
+    apple: 2
+  stats:
+    carry_limit: 1
+locations:
+  - location_id: plaza
+    name: Plaza
+    description: A plaza.
+objects: []
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="exceeds the configured carry_limit"):
+        load_scenario(scenario_file)
+
+
+def test_loader_accepts_non_empty_initial_inventory_within_carry_limit(tmp_path):
+    scenario_file = tmp_path / "scenario.yaml"
+    scenario_file.write_text(
+        """
+scenario_id: valid
+initial_agent_state:
+  location_id: plaza
+  inventory:
+    apple: 2
+  stats:
+    carry_limit: 3
+locations:
+  - location_id: plaza
+    name: Plaza
+    description: A plaza.
+objects: []
+""".strip(),
+        encoding="utf-8",
+    )
+
+    state = load_scenario(scenario_file)
+
+    assert state.agent.inventory == {"apple": 2}
+    assert state.agent.stats == {"carry_limit": 3}
+
+
 def test_loader_rejects_event_rules_with_unknown_objects(tmp_path):
     scenario_file = tmp_path / "bad_scenario.yaml"
     scenario_file.write_text(

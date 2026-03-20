@@ -5,6 +5,7 @@ from typing import Union
 
 import yaml
 
+from engine.rules import inventory_capacity, inventory_load
 from engine.state import Location, Skill, WorldObject, WorldState
 from scenario.schema import ScenarioConfig, ScenarioObjectSource
 
@@ -20,7 +21,9 @@ def load_scenario(path: Union[str, Path]) -> WorldState:
     objects = _build_objects(config, locations=locations, base_dir=base_dir)
     skills = _build_skills(config, base_dir=base_dir)
     _validate_event_rules(config, objects=objects, locations=locations)
-    return _build_world_state(config, locations=locations, objects=objects, skills=skills)
+    state = _build_world_state(config, locations=locations, objects=objects, skills=skills)
+    _validate_initial_agent_capacity(state)
+    return state
 
 
 def _parse_config(scenario_path: Path) -> ScenarioConfig:
@@ -202,3 +205,11 @@ def _validate_event_rules(
         if unknown_objects:
             object_list = ", ".join(unknown_objects)
             raise ValueError(f"Event rule `{rule.event_id}` references unknown object(s): {object_list}.")
+
+
+def _validate_initial_agent_capacity(state: WorldState) -> None:
+    carry_limit = inventory_capacity(state)
+    if carry_limit is not None and inventory_load(state.agent.inventory) > carry_limit:
+        raise ValueError(
+            "Initial agent inventory exceeds the configured carry_limit."
+        )
