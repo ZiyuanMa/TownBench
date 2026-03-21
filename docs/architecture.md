@@ -190,4 +190,5 @@ Agent 可见的信息切片，**不暴露**完整 WorldState。仅包含：
 - `test_scenario_loader.py` — 场景加载和所有校验规则
 - `test_phase1_scenario.py` — phase1_town 场景的集成测试
 - `test_phase2_scenario.py` — phase2_town 经营循环、扩容和恢复路径的集成测试
+- `test_multi_area_town.py` — multi_area_town 区域互通、跨区路由和多房间经济循环的集成测试
 - `test_openai_baseline.py` — Baseline 工具和 runner（使用 Fake 替身）
