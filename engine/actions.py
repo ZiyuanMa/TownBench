@@ -54,7 +54,7 @@ _ACTION_SPEC_LIST: tuple[ActionSpec, ...] = (
         default_cost=ActionCost(time_delta=10, energy_delta=-2),
         tool=ActionToolSpec(
             name="move_to",
-            description="Move the agent to a linked location by location id.",
+            description="Move the agent to a reachable location by location id. Reachable locations are explicit links plus other locations in the same area.",
             parameters=(ActionToolParameter("target_id"),),
             build_action=lambda target_id: Action(type="move_to", target_id=target_id),
         ),

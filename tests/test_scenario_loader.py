@@ -14,7 +14,9 @@ def test_load_scenario_builds_world_state():
 
     assert state.scenario_id == "demo_town"
     assert state.agent.location_id == "plaza"
+    assert state.areas == {}
     assert set(state.locations) == {"plaza", "library", "workshop"}
+    assert state.locations["plaza"].area_id is None
     assert set(state.objects) == {
         "notice_board",
         "recipe_card",
@@ -248,6 +250,119 @@ objects:
     name: Notice Board
     object_type: board
     location_id: plaza
+    summary: A board.
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="must not declare `object_ids`"):
+        load_scenario(scenario_file)
+
+
+def test_loader_parses_areas_and_location_area_ids(tmp_path):
+    scenario_file = tmp_path / "scenario.yaml"
+    scenario_file.write_text(
+        """
+scenario_id: area_demo
+initial_agent_state:
+  location_id: lobby
+areas:
+  - area_id: library
+    name: Library
+    description: A quiet public library.
+locations:
+  - location_id: lobby
+    name: Lobby
+    description: The library entrance.
+    area_id: library
+  - location_id: archive
+    name: Archive
+    description: A records room.
+    area_id: library
+objects: []
+skills: []
+""".strip(),
+        encoding="utf-8",
+    )
+
+    state = load_scenario(scenario_file)
+
+    assert set(state.areas) == {"library"}
+    assert state.areas["library"].name == "Library"
+    assert state.locations["lobby"].area_id == "library"
+    assert state.locations["archive"].area_id == "library"
+
+
+def test_loader_rejects_duplicate_area_ids(tmp_path):
+    scenario_file = tmp_path / "bad_scenario.yaml"
+    scenario_file.write_text(
+        """
+scenario_id: broken
+initial_agent_state:
+  location_id: lobby
+areas:
+  - area_id: library
+    name: Library
+  - area_id: library
+    name: Duplicate Library
+locations:
+  - location_id: lobby
+    name: Lobby
+    description: The entry room.
+    area_id: library
+objects: []
+skills: []
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="Duplicate area id"):
+        load_scenario(scenario_file)
+
+
+def test_loader_rejects_unknown_location_area_reference(tmp_path):
+    scenario_file = tmp_path / "bad_scenario.yaml"
+    scenario_file.write_text(
+        """
+scenario_id: broken
+initial_agent_state:
+  location_id: lobby
+locations:
+  - location_id: lobby
+    name: Lobby
+    description: The entry room.
+    area_id: library
+objects: []
+skills: []
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="references unknown area"):
+        load_scenario(scenario_file)
+
+
+def test_loader_rejects_authored_location_object_ids_even_with_area_id_present(tmp_path):
+    scenario_file = tmp_path / "bad_scenario.yaml"
+    scenario_file.write_text(
+        """
+scenario_id: broken
+initial_agent_state:
+  location_id: lobby
+areas:
+  - area_id: library
+    name: Library
+locations:
+  - location_id: lobby
+    name: Lobby
+    description: The entry room.
+    area_id: library
+    object_ids: [notice_board]
+objects:
+  - object_id: notice_board
+    name: Notice Board
+    object_type: board
+    location_id: lobby
     summary: A board.
 """.strip(),
         encoding="utf-8",

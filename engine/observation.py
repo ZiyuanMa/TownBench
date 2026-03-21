@@ -5,7 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from engine.state import AgentState, Location, Skill, WorldObject, WorldState
+from engine.state import AgentState, Area, Location, Skill, WorldObject, WorldState
 
 
 class AgentObservation(BaseModel):
@@ -23,6 +23,13 @@ class LocationObservation(BaseModel):
     name: str
     description: str
     links: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+
+
+class AreaObservation(BaseModel):
+    area_id: str
+    name: str
+    description: str = ""
     tags: list[str] = Field(default_factory=list)
 
 
@@ -45,6 +52,8 @@ class Observation(BaseModel):
     current_time: str
     agent: AgentObservation
     current_location: LocationObservation
+    current_area: AreaObservation | None = None
+    nearby_locations: list[str] = Field(default_factory=list)
     visible_objects: list[ObjectObservation] = Field(default_factory=list)
     visible_skills: list[SkillObservation] = Field(default_factory=list)
 
@@ -71,6 +80,15 @@ def _project_location(location: Location) -> LocationObservation:
     )
 
 
+def _project_area(area: Area) -> AreaObservation:
+    return AreaObservation(
+        area_id=area.area_id,
+        name=area.name,
+        description=area.description,
+        tags=list(area.tags),
+    )
+
+
 def _project_object(world_object: WorldObject) -> ObjectObservation:
     return ObjectObservation(
         object_id=world_object.object_id,
@@ -86,8 +104,23 @@ def _project_skill(skill: Skill) -> SkillObservation:
     return SkillObservation(skill_id=skill.skill_id, name=skill.name, description=skill.description)
 
 
+def _build_nearby_locations(state: WorldState, current_location: Location) -> list[str]:
+    nearby: set[str] = set(current_location.links)
+    if current_location.area_id is not None:
+        nearby.update(
+            location.location_id
+            for location in state.locations.values()
+            if location.area_id == current_location.area_id
+        )
+    nearby.discard(current_location.location_id)
+    return sorted(nearby)
+
+
 def project_observation(state: WorldState) -> Observation:
     location = state.locations[state.agent.location_id]
+    current_area = None
+    if location.area_id is not None and location.area_id in state.areas:
+        current_area = _project_area(state.areas[location.area_id])
     visible_objects = [
         _project_object(state.objects[object_id])
         for object_id in location.object_ids
@@ -98,6 +131,8 @@ def project_observation(state: WorldState) -> Observation:
         current_time=state.current_time,
         agent=_project_agent(state.agent),
         current_location=_project_location(location),
+        current_area=current_area,
+        nearby_locations=_build_nearby_locations(state, location),
         visible_objects=visible_objects,
         visible_skills=visible_skills,
     )
@@ -107,6 +142,8 @@ def summarize_observation(observation: Observation) -> dict[str, Any]:
     return {
         "current_time": observation.current_time,
         "location_id": observation.current_location.location_id,
+        "current_area_id": observation.current_area.area_id if observation.current_area is not None else None,
+        "nearby_location_ids": list(observation.nearby_locations),
         "visible_object_ids": [item.object_id for item in observation.visible_objects],
         "visible_skill_ids": [item.skill_id for item in observation.visible_skills],
         "note_count": len(observation.agent.notes),

@@ -74,7 +74,8 @@ TransitionOutcome                              │
 环境的完整内部状态，包含：
 
 - `agent: AgentState` — 位置、金钱、能量、背包、笔记和数值型 `stats`
-- `locations: dict[str, Location]` — 地图节点及连接
+- `areas: dict[str, Area]` — 建筑/区域语义分组；仅保存区域元数据，不冗余保存 `location_ids`
+- `locations: dict[str, Location]` — 地图节点及连接；`Location.area_id` 可选指向所属区域
 - `objects: dict[str, WorldObject]` — 可交互物体及其动作效果
 - `skills: dict[str, Skill]` — 可加载的技能文档
 - `world_flags: dict[str, bool]` — 全局状态标志
@@ -102,13 +103,23 @@ TransitionOutcome                              │
 支持前置条件检查（world_flags、inventory、money、agent stats）和副作用
 （状态变更、数值 stats 增减、传送等）。
 
+`move_to` 仍然只接受 `location_id`。可达性规则为：
+- 移动到当前位置时成功返回，作为 no-op，但仍消耗动作成本
+- 同一非空 `Area` 内的 `Location` 默认互通
+- 跨 `Area` 或未分配 `Area` 的地点，仍依赖 `Location.links`
+
 ### Observation (`engine/observation.py`)
 
 Agent 可见的信息切片，**不暴露**完整 WorldState。仅包含：
-- 当前位置信息和连接
+- 当前位置信息和显式 authored 连接
+- 当前区域语义信息 `current_area`（若当前位置属于某个 `Area`）
+- 所有当前可移动目标 `nearby_locations`（显式 links 与同 Area 隐式可达地点的并集）
 - 当前位置的可见物体（名称、摘要、visible_state、action_ids）
 - 可用技能列表（仅 id + 名称 + 描述，不含完整 content）
 - Agent 自身状态，包括 `stats`
+
+注意：对象可见性和可交互性仍严格限定在 `agent.location_id` 对应的当前
+`Location`，不会因为同属一个 `Area` 而放宽。
 
 ### TransitionEngine (`engine/transition.py`)
 
@@ -136,8 +147,9 @@ Agent 可见的信息切片，**不暴露**完整 WorldState。仅包含：
 `initial_agent_state`、`action_costs`、`event_rules`、`termination_config` 和对象
 `action_effects`，避免镜像 leaf model 的重复维护。
 
+- `areas` 支持 authoring 层声明建筑/区域元数据
 - 唯一性检查（location/object/skill/event ID）
-- 引用完整性（links 指向已知 location、object 在已知 location）
+- 引用完整性（`Location.area_id` 必须指向已知 area，links 指向已知 location、object 在已知 location）
 - action_effects 不允许存在未暴露的动作
 - 对象动作支持 `required_agent_stats` 和 `agent_stat_deltas`
 - event_rules 不允许引用未知 object

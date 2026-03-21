@@ -45,13 +45,23 @@ def _handle_move_to(state: WorldState, action: Action) -> ActionExecution:
         return _failure("missing_target", "move_to requires a target_id.")
 
     current_location = state.locations[state.agent.location_id]
-    if action.target_id not in state.locations:
+    if action.target_id == current_location.location_id:
+        return _success("You are already here.")
+
+    target_location = state.locations.get(action.target_id)
+    if target_location is None:
         return _failure("unknown_location", f"Unknown location `{action.target_id}`.")
-    if action.target_id not in current_location.links:
+
+    reachable = False
+    if current_location.area_id is not None and current_location.area_id == target_location.area_id:
+        reachable = True
+    elif action.target_id in current_location.links:
+        reachable = True
+
+    if not reachable:
         return _failure("unreachable_location", f"Location `{action.target_id}` is not reachable.")
 
     state.agent.location_id = action.target_id
-    target_location = state.locations[action.target_id]
     return _success(f"Moved to `{target_location.name}`.")
 
 

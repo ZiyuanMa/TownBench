@@ -45,10 +45,18 @@ class AgentState(BaseModel):
     stats: dict[str, int] = Field(default_factory=dict)
 
 
+class Area(BaseModel):
+    area_id: str
+    name: str
+    description: str = ""
+    tags: list[str] = Field(default_factory=list)
+
+
 class Location(BaseModel):
     location_id: str
     name: str
     description: str
+    area_id: str | None = None
     links: list[str] = Field(default_factory=list)
     object_ids: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
@@ -97,6 +105,7 @@ class Skill(BaseModel):
 class WorldState(BaseModel):
     current_time: str = "Day 1, 08:00"
     agent: AgentState
+    areas: dict[str, Area] = Field(default_factory=dict)
     locations: dict[str, Location]
     objects: dict[str, WorldObject] = Field(default_factory=dict)
     skills: dict[str, Skill] = Field(default_factory=dict)

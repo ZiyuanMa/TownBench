@@ -6,7 +6,7 @@ from typing import Union
 import yaml
 
 from engine.rules import inventory_capacity, inventory_load
-from engine.state import Location, Skill, WorldObject, WorldState
+from engine.state import Area, Location, Skill, WorldObject, WorldState
 from scenario.schema import ScenarioConfig, ScenarioObjectSource
 
 
@@ -16,12 +16,13 @@ def load_scenario(path: Union[str, Path]) -> WorldState:
     base_dir = scenario_path.parent
 
     _validate_unique_ids(config)
+    areas = _build_areas(config)
     locations = _build_locations(config)
-    _validate_location_references(config, locations)
+    _validate_location_references(config, locations, areas=areas)
     objects = _build_objects(config, locations=locations, base_dir=base_dir)
     skills = _build_skills(config, base_dir=base_dir)
     _validate_event_rules(config, objects=objects, locations=locations)
-    state = _build_world_state(config, locations=locations, objects=objects, skills=skills)
+    state = _build_world_state(config, areas=areas, locations=locations, objects=objects, skills=skills)
     _validate_initial_agent_capacity(state)
     return state
 
@@ -31,21 +32,32 @@ def _parse_config(scenario_path: Path) -> ScenarioConfig:
 
 
 def _validate_unique_ids(config: ScenarioConfig) -> None:
+    _ensure_unique_ids([item.area_id for item in config.areas], "area")
     _ensure_unique_ids([item.location_id for item in config.locations], "location")
     _ensure_unique_ids([item.object_id for item in config.objects], "object")
     _ensure_unique_ids([item.skill_id for item in config.skills], "skill")
     _ensure_unique_ids([item.event_id for item in config.event_rules], "event rule")
 
 
+def _build_areas(config: ScenarioConfig) -> dict[str, Area]:
+    return {item.area_id: item.to_area() for item in config.areas}
+
+
 def _build_locations(config: ScenarioConfig) -> dict[str, Location]:
     return {item.location_id: item.to_location() for item in config.locations}
 
 
-def _validate_location_references(config: ScenarioConfig, locations: dict[str, Location]) -> None:
+def _validate_location_references(
+    config: ScenarioConfig,
+    locations: dict[str, Location],
+    *,
+    areas: dict[str, Area],
+) -> None:
     if config.initial_agent_state.location_id not in locations:
         raise ValueError(
             f"Initial agent location `{config.initial_agent_state.location_id}` does not exist in locations."
         )
+    _validate_location_areas(locations, areas=areas)
     _validate_location_links(locations)
 
 
@@ -72,6 +84,7 @@ def _build_skills(config: ScenarioConfig, *, base_dir: Path) -> dict[str, Skill]
 def _build_world_state(
     config: ScenarioConfig,
     *,
+    areas: dict[str, Area],
     locations: dict[str, Location],
     objects: dict[str, WorldObject],
     skills: dict[str, Skill],
@@ -79,6 +92,7 @@ def _build_world_state(
     return WorldState(
         current_time=config.initial_world_state.current_time,
         agent=config.initial_agent_state.model_copy(deep=True),
+        areas=areas,
         locations=locations,
         objects=objects,
         skills=skills,
@@ -171,6 +185,17 @@ def _validate_location_links(locations: dict[str, Location]) -> None:
         if unknown_links:
             links = ", ".join(unknown_links)
             raise ValueError(f"Location `{location.location_id}` links to unknown location(s): {links}.")
+
+
+def _validate_location_areas(locations: dict[str, Location], *, areas: dict[str, Area]) -> None:
+    known_areas = set(areas)
+    for location in locations.values():
+        if location.area_id is None:
+            continue
+        if location.area_id not in known_areas:
+            raise ValueError(
+                f"Location `{location.location_id}` references unknown area `{location.area_id}`."
+            )
 
 
 def _validate_object_source(item: ScenarioObjectSource, *, locations: dict[str, Location]) -> None:

@@ -1,5 +1,5 @@
 from runtime.env import TownBenchEnv
-from engine.state import ActionCost, ObjectActionEffect, WorldEventRule
+from engine.state import ActionCost, Area, Location, ObjectActionEffect, WorldEventRule
 
 
 def test_move_to_updates_agent_location(minimal_world_state):
@@ -14,6 +14,20 @@ def test_move_to_updates_agent_location(minimal_world_state):
     assert env.get_trace()[0].success is True
 
 
+def test_move_to_current_location_is_a_successful_no_op(minimal_world_state):
+    env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
+    env.reset()
+
+    result = env.step({"type": "move_to", "target_id": "plaza"})
+
+    assert result.success is True
+    assert result.observation.current_location.location_id == "plaza"
+    assert env.state.agent.location_id == "plaza"
+    assert result.time_delta == 10
+    assert result.energy_delta == -2
+    assert env.state.current_time == "Day 1, 08:10"
+
+
 def test_invalid_move_is_structured_failure(minimal_world_state):
     env = TownBenchEnv(minimal_world_state)
     env.reset()
@@ -24,6 +38,89 @@ def test_invalid_move_is_structured_failure(minimal_world_state):
     assert result.observation.current_location.location_id == "plaza"
     assert env.state.agent.location_id == "plaza"
     assert env.get_trace()[0].error_type == "unknown_location"
+
+
+def test_move_to_allows_same_area_locations_without_explicit_links(minimal_world_state):
+    state = minimal_world_state.model_copy(deep=True)
+    state.areas = {
+        "market_block": Area(area_id="market_block", name="Market Block"),
+    }
+    state.agent.location_id = "market"
+    state.locations["market"].area_id = "market_block"
+    state.locations["market"].links = []
+    state.locations["storeroom"] = Location(
+        location_id="storeroom",
+        name="Storeroom",
+        description="A back room.",
+        area_id="market_block",
+    )
+    env = TownBenchEnv(state)
+    env.reset()
+
+    result = env.step({"type": "move_to", "target_id": "storeroom"})
+
+    assert result.success is True
+    assert env.state.agent.location_id == "storeroom"
+
+
+def test_move_to_requires_explicit_link_across_areas(minimal_world_state):
+    state = minimal_world_state.model_copy(deep=True)
+    state.areas = {
+        "town_center": Area(area_id="town_center", name="Town Center"),
+        "market_block": Area(area_id="market_block", name="Market Block"),
+    }
+    state.agent.location_id = "market"
+    state.locations["plaza"].area_id = "town_center"
+    state.locations["market"].area_id = "market_block"
+    env = TownBenchEnv(state)
+    env.reset()
+
+    result = env.step({"type": "move_to", "target_id": "plaza"})
+
+    assert result.success is True
+    assert env.state.agent.location_id == "plaza"
+
+
+def test_move_to_rejects_existing_cross_area_location_without_link(minimal_world_state):
+    state = minimal_world_state.model_copy(deep=True)
+    state.areas = {
+        "market_block": Area(area_id="market_block", name="Market Block"),
+        "service_hub": Area(area_id="service_hub", name="Service Hub"),
+    }
+    state.agent.location_id = "market"
+    state.locations["market"].area_id = "market_block"
+    state.locations["market"].links = []
+    state.locations["depot"] = Location(
+        location_id="depot",
+        name="Depot",
+        description="A service depot.",
+        area_id="service_hub",
+    )
+    env = TownBenchEnv(state)
+    env.reset()
+
+    result = env.step({"type": "move_to", "target_id": "depot"})
+
+    assert result.success is False
+    assert result.warnings == ["unreachable_location"]
+    assert env.state.agent.location_id == "market"
+
+
+def test_move_to_without_areas_still_depends_only_on_links(minimal_world_state):
+    state = minimal_world_state.model_copy(deep=True)
+    state.locations["warehouse"] = Location(
+        location_id="warehouse",
+        name="Warehouse",
+        description="A storage building.",
+    )
+    env = TownBenchEnv(state)
+    env.reset()
+
+    result = env.step({"type": "move_to", "target_id": "warehouse"})
+
+    assert result.success is False
+    assert result.warnings == ["unreachable_location"]
+    assert env.state.agent.location_id == "plaza"
 
 
 def test_write_note_appends_note_and_status_reflects_it(minimal_world_state):
@@ -603,6 +700,38 @@ def test_call_action_can_apply_energy_inventory_and_location_changes(minimal_wor
     assert env.state.agent.inventory == {"ticket": 1}
     assert result.data["location_id"] == "plaza"
     assert result.data["inventory"] == {"ticket": 1}
+
+
+def test_call_action_teleport_ignores_area_reachability(minimal_world_state):
+    state = minimal_world_state.model_copy(deep=True)
+    state.areas = {
+        "market_block": Area(area_id="market_block", name="Market Block"),
+        "service_hub": Area(area_id="service_hub", name="Service Hub"),
+    }
+    state.locations["market"].area_id = "market_block"
+    state.locations["vault"] = Location(
+        location_id="vault",
+        name="Vault",
+        description="A secured room.",
+        area_id="service_hub",
+    )
+    env = TownBenchEnv(state)
+    env.reset()
+    env.state.objects["counter"].actionable = True
+    env.state.objects["counter"].action_ids = ["enter_vault"]
+    env.state.objects["counter"].action_effects = {
+        "enter_vault": ObjectActionEffect(
+            message="Escorted into the vault.",
+            move_to_location_id="vault",
+        )
+    }
+    env.step({"type": "move_to", "target_id": "market"})
+
+    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "enter_vault"}})
+
+    assert result.success is True
+    assert env.state.agent.location_id == "vault"
+    assert result.data["location_id"] == "vault"
 
 
 def test_call_action_rejects_when_required_inventory_is_missing(minimal_world_state):

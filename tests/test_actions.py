@@ -12,6 +12,10 @@ def test_tool_specs_are_backed_by_registered_actions():
     assert all(ACTION_SPECS[spec.action_type] is spec for spec in TOOL_ACTION_SPECS)
 
 
+def test_move_to_tool_description_mentions_area_reachability():
+    assert "same area" in ACTION_SPECS["move_to"].tool.description
+
+
 def test_get_action_cost_prefers_runtime_override(minimal_world_state):
     minimal_world_state.action_costs["move_to"] = ActionCost(time_delta=3, energy_delta=-1, money_delta=2)
 

@@ -5,7 +5,16 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from engine.state import ActionCost, AgentState, Location, ObjectActionEffect, TerminationConfig, WorldEventRule, WorldObject
+from engine.state import (
+    ActionCost,
+    AgentState,
+    Area,
+    Location,
+    ObjectActionEffect,
+    TerminationConfig,
+    WorldEventRule,
+    WorldObject,
+)
 
 
 def _reject_runtime_only_field(data: Any, *, field_name: str, label: str, id_key: str) -> Any:
@@ -24,12 +33,30 @@ class ScenarioInitialWorldState(BaseModel):
     world_flags: dict[str, bool] = Field(default_factory=dict)
 
 
+class ScenarioAreaSource(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    area_id: str
+    name: str
+    description: str = ""
+    tags: list[str] = Field(default_factory=list)
+
+    def to_area(self) -> Area:
+        return Area(
+            area_id=self.area_id,
+            name=self.name,
+            description=self.description,
+            tags=list(self.tags),
+        )
+
+
 class ScenarioLocationSource(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     location_id: str
     name: str
     description: str
+    area_id: str | None = None
     links: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
 
@@ -48,6 +75,7 @@ class ScenarioLocationSource(BaseModel):
             location_id=self.location_id,
             name=self.name,
             description=self.description,
+            area_id=self.area_id,
             links=list(self.links),
             object_ids=[],
             tags=list(self.tags),
@@ -114,6 +142,7 @@ class ScenarioConfig(BaseModel):
     public_rules: list[str] = Field(default_factory=list)
     initial_world_state: ScenarioInitialWorldState = Field(default_factory=ScenarioInitialWorldState)
     initial_agent_state: AgentState
+    areas: list[ScenarioAreaSource] = Field(default_factory=list)
     locations: list[ScenarioLocationSource] = Field(default_factory=list)
     objects: list[ScenarioObjectSource] = Field(default_factory=list)
     skills: list[ScenarioSkillSource] = Field(default_factory=list)
