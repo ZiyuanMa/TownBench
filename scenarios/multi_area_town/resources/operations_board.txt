@@ -1,0 +1,8 @@
+Town operating summary:
+
+- Tea loop: buy `tea_bundle`, `fuel_canister`, and `packaging_sleeve`, then brew in the tea room, pack in the packing room, and sell for the best steady margin.
+- Meal loop: buy `meal_ingredients`, assemble a `meal_box`, and deliver it through the cafe pickup window when cash is running low.
+- Repair loop: buy one `repair_part`, finish the job in the repair room, and cash out the signed ticket at the depot.
+- Home recovery is cheap if you already have a `meal_box` or need to rest, while the cafe offers faster paid recovery.
+- Carrying space is limited at the start. The storage room sells one locker upgrade if you can afford it.
+- Dusty trinkets from the bargain bin are cheap but can trap your working capital in bad inventory.

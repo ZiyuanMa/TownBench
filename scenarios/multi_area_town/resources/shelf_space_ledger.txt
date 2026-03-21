@@ -1,0 +1,8 @@
+Storage ledger excerpt:
+
+- Current starter carry limit: 3 item slots
+- Locker upgrade price: 6 coins
+- Upgrade effect: +2 permanent carry slots for this run
+- This clerk records one upgrade per worker and will not sell the same upgrade twice
+
+If you expand too early, you may slow down your cash recovery. If you expand too late, you cannot carry the bundled tea batch.
