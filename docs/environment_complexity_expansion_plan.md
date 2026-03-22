@@ -4,6 +4,9 @@
 
 Expand TownBench from a small authored task environment into a staged economic world benchmark.
 
+Implementation-focused design notes for deterministic dynamic mechanisms are
+captured in `docs/dynamic_mechanisms_design.md`.
+
 The near-term priority is not code sophistication for its own sake. It is to introduce richer choices:
 
 - more than one way to earn money
