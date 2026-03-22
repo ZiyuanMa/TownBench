@@ -7,6 +7,7 @@ from openai.types.responses.response_text_delta_event import ResponseTextDeltaEv
 
 from baselines.openai_agents.agent import build_openai_agent
 from baselines.openai_agents.config import OpenAIAgentsConfig
+from baselines.openai_agents.rendering import render_initial_observation, render_tool_result
 from baselines.openai_agents.runner import (
     run_openai_agents_episode,
     run_openai_agents_episode_streamed,
@@ -40,6 +41,7 @@ class FakeRunner:
         assert run_config is not None
         assert "Opening briefing:" in _input
         assert "Public rules:" in _input
+        assert "Current location: Plaza (plaza)" in _input
         tools = {tool.__name__: tool for tool in agent.tools}
         tools["move_to"]("workshop")
         tools["call_action"]("tea_station", "brew_tea")
@@ -119,11 +121,14 @@ class _FakeToolOutputItem:
     output = '{"success": true}'
 
 
-def test_build_townbench_tools_executes_env_steps():
+def test_build_townbench_tools_executes_env_steps_in_json_mode():
     scenario_path = Path(__file__).resolve().parents[1] / "scenarios" / "demo_town" / "scenario.yaml"
     env = TownBenchEnv(load_scenario(scenario_path))
     env.reset()
-    tools = {tool.__name__: tool for tool in build_townbench_tools(env, function_tool_decorator=_identity_tool)}
+    tools = {
+        tool.__name__: tool
+        for tool in build_townbench_tools(env, function_tool_decorator=_identity_tool, output_format="json")
+    }
 
     move_result = tools["move_to"]("workshop")
     brew_result = tools["call_action"]("tea_station", "brew_tea")
@@ -136,6 +141,71 @@ def test_build_townbench_tools_executes_env_steps():
     assert env.state.world_flags["order_logged"] is False
     assert env.state.world_flags["payment_posted"] is True
     assert env.state.agent.money == 21
+
+
+def test_build_townbench_tools_returns_text_by_default():
+    scenario_path = Path(__file__).resolve().parents[1] / "scenarios" / "demo_town" / "scenario.yaml"
+    env = TownBenchEnv(load_scenario(scenario_path))
+    env.reset()
+    tools = {tool.__name__: tool for tool in build_townbench_tools(env, function_tool_decorator=_identity_tool)}
+
+    move_result = tools["move_to"]("workshop")
+
+    assert isinstance(move_result, str)
+    assert "Moved to `Workshop`." in move_result
+    assert "Effects: time +12, energy -3" in move_result
+
+
+def test_render_tool_result_failure_includes_correction_context():
+    scenario_path = Path(__file__).resolve().parents[1] / "scenarios" / "demo_town" / "scenario.yaml"
+    env = TownBenchEnv(load_scenario(scenario_path))
+    env.reset()
+
+    result = env.step({"type": "call_action", "target_id": "tea_station", "args": {"action": "record_order"}})
+    rendered = render_tool_result(
+        {"type": "call_action", "target_id": "tea_station", "args": {"action": "record_order"}},
+        result,
+    )
+
+    assert "Requested target: tea_station" in rendered
+    assert "Requested action: record_order" in rendered
+    assert "Visible objects now: notice_board" in rendered
+
+
+def test_render_initial_observation_text_preserves_public_context():
+    scenario_path = Path(__file__).resolve().parents[1] / "scenarios" / "demo_town" / "scenario.yaml"
+    env = TownBenchEnv(load_scenario(scenario_path))
+    observation = env.reset()
+
+    rendered = render_initial_observation(observation)
+
+    assert "Current time: Day 1, 08:00" in rendered
+    assert "Current location: Plaza (plaza)" in rendered
+    assert "Nearby locations: library, workshop" in rendered
+    assert "Visible objects:" in rendered
+    assert "Notice Board (notice_board): A board with public notices." in rendered
+
+
+def test_run_openai_agents_episode_can_force_json_initial_observation():
+    scenario_path = Path(__file__).resolve().parents[1] / "scenarios" / "demo_town" / "scenario.yaml"
+    env = TownBenchEnv(load_scenario(scenario_path))
+
+    class JsonRunner:
+        @staticmethod
+        def run_sync(agent, _input, max_turns, run_config=None):
+            assert '"current_time": "Day 1, 08:00"' in _input
+            assert '"location_id": "plaza"' in _input
+            return FakeRunResult("JSON mode confirmed.")
+
+    result = run_openai_agents_episode(
+        env=env,
+        config=OpenAIAgentsConfig(max_turns=4, tool_output_format="json"),
+        agent_cls=FakeAgent,
+        runner_cls=JsonRunner,
+        function_tool_decorator=_identity_tool,
+    )
+
+    assert result.final_output == "JSON mode confirmed."
 
 
 def test_build_openai_agent_uses_config_and_tools():

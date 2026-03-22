@@ -16,7 +16,11 @@ def build_openai_agent(
 ) -> Any:
     config = config or OpenAIAgentsConfig()
     agent_type = agent_cls or _load_agent_class()
-    tools = build_townbench_tools(env, function_tool_decorator=function_tool_decorator)
+    tools = build_townbench_tools(
+        env,
+        function_tool_decorator=function_tool_decorator,
+        output_format=config.tool_output_format,
+    )
 
     kwargs: dict[str, Any] = {
         "name": config.agent_name,

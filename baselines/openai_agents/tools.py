@@ -4,7 +4,9 @@ from inspect import Parameter, Signature
 from typing import Any, Callable
 
 from engine.actions import ActionSpec, ActionToolSpec, TOOL_ACTION_SPECS
+from engine.action_models import Action
 from runtime.env import TownBenchEnv
+from baselines.openai_agents.rendering import RenderMode, render_tool_result
 
 ToolDecorator = Callable[[Callable[..., Any]], Callable[..., Any]]
 
@@ -13,23 +15,26 @@ def build_townbench_tools(
     env: TownBenchEnv,
     *,
     function_tool_decorator: ToolDecorator | None = None,
+    output_format: RenderMode = "text",
 ) -> list[Callable[..., Any]]:
     decorator = function_tool_decorator or _load_function_tool_decorator()
-    return [_build_tool(spec, env, decorator) for spec in TOOL_ACTION_SPECS]
+    return [_build_tool(spec, env, decorator, output_format=output_format) for spec in TOOL_ACTION_SPECS]
 
 
-def _serialize_step_result(result: Any) -> dict[str, Any]:
-    return result.model_dump()
-
-
-def _build_tool(spec: ActionSpec, env: TownBenchEnv, decorator: ToolDecorator) -> Callable[..., Any]:
+def _build_tool(
+    spec: ActionSpec,
+    env: TownBenchEnv,
+    decorator: ToolDecorator,
+    *,
+    output_format: RenderMode,
+) -> Callable[..., Any]:
     tool_spec = spec.tool
     if tool_spec is None:
         raise ValueError(f"Action `{spec.action_type}` is not exposed as a baseline tool.")
 
-    def tool(*args: Any, **kwargs: Any) -> dict[str, Any]:
+    def tool(*args: Any, **kwargs: Any) -> str | dict[str, Any]:
         action = _build_action(tool_spec, args=args, kwargs=kwargs)
-        return _serialize_step_result(env.step(action))
+        return render_tool_result(action, env.step(action), mode=output_format)
 
     tool.__name__ = tool_spec.name
     tool.__qualname__ = tool_spec.name
@@ -39,16 +44,16 @@ def _build_tool(spec: ActionSpec, env: TownBenchEnv, decorator: ToolDecorator) -
             Parameter(parameter.name, kind=Parameter.POSITIONAL_OR_KEYWORD, annotation=parameter.annotation)
             for parameter in tool_spec.parameters
         ],
-        return_annotation=dict[str, Any],
+        return_annotation=str | dict[str, Any],
     )
     tool.__annotations__ = {
         parameter.name: parameter.annotation
         for parameter in tool_spec.parameters
-    } | {"return": dict[str, Any]}
+    } | {"return": str | dict[str, Any]}
     return decorator(tool)
 
 
-def _build_action(tool_spec: ActionToolSpec, *, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Any:
+def _build_action(tool_spec: ActionToolSpec, *, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Action:
     if args and kwargs:
         raise TypeError(f"{tool_spec.name} accepts either positional or keyword arguments, not both.")
     if args:

@@ -42,16 +42,19 @@ def build_episode_initial_input(
     *,
     opening_briefing: str,
     public_rules: list[str],
-    initial_observation: dict[str, Any],
+    initial_observation: dict[str, Any] | str,
 ) -> str:
-    observation_json = json.dumps(initial_observation, ensure_ascii=False, indent=2)
     sections = []
     if opening_briefing:
         sections.append(f"Opening briefing:\n{opening_briefing}")
     if public_rules:
         rules_block = "\n".join(f"- {rule}" for rule in public_rules)
         sections.append(f"Public rules:\n{rules_block}")
-    sections.append(f"Initial observation:\n{observation_json}")
+    if isinstance(initial_observation, str):
+        rendered_observation = initial_observation
+    else:
+        rendered_observation = json.dumps(initial_observation, ensure_ascii=False, indent=2)
+    sections.append(f"Initial observation:\n{rendered_observation}")
     return "\n\n".join(sections)
 
 

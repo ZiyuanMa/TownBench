@@ -89,7 +89,8 @@ TransitionOutcome                              │
 
 共享 action 数据模型位于 `engine/action_models.py`：
 - `Action` — Agent 提交的标准化动作
-- `ActionExecution` — handler 执行结果，包括 message、error_type、资源变化和 payload builder
+- `ActionExecution` — handler 执行结果，包括 message、error_type、资源变化、
+  失败/补充元数据 `result_data` 和 success payload builder
 
 每种动作通过 `ActionSpec` 在 `engine/actions.py` 中注册：
 - `handler` — 执行逻辑函数
@@ -132,6 +133,11 @@ Agent 可见的信息切片，**不暴露**完整 WorldState。仅包含：
 6. 检查终止条件
 7. 返回 `TransitionOutcome`（新 state + StepResult + TraceEntry）
 
+`StepResult.data` 仍然是返回给 Agent 的统一 payload 容器，但现在除了成功分支的
+业务 payload 外，也允许失败分支放入轻量纠错 metadata（例如 `reachable_locations`、
+`visible_object_ids`、`available_actions`、`required_inventory`），供 baseline
+renderer 生成更稳定的文本反馈。
+
 ### TownBenchEnv (`runtime/env.py`)
 
 对 TransitionEngine 的有状态封装，提供 `reset()` / `step()` / `get_trace()`
@@ -165,10 +171,13 @@ Agent 可见的信息切片，**不暴露**完整 WorldState。仅包含：
 ### OpenAI Agents 实现 (`baselines/openai_agents/`)
 
 - `tools.py` — 从 `TOOL_ACTION_SPECS` 动态生成带签名的 Python 函数，
-  用 `@function_tool` 装饰后交给 OpenAI Agents SDK
+  用 `@function_tool` 装饰后交给 OpenAI Agents SDK；默认返回文本渲染结果，
+  也支持兼容的 `json` 模式
+- `rendering.py` — 纯函数 renderer，将 `StepResult` 和初始 `Observation`
+  渲染为 agent/CLI 共用的文本或 JSON 输出
 - `agent.py` — 构造 Agent 实例（可注入自定义 agent_cls 和 tool decorator）
 - `runner.py` — 同步和流式两种运行模式，处理 `MaxTurnsExceeded` 异常
-- `config.py` — 配置（模型、max_turns、API 模式），支持环境变量
+- `config.py` — 配置（模型、max_turns、API 模式、`tool_output_format`），支持环境变量
 
 ## 评分 (`evaluation/scorer.py`)
 

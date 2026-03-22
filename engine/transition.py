@@ -95,6 +95,7 @@ class TransitionEngine:
                 success=False,
                 message=f"Action `{action.type}` is not implemented.",
                 error_type="not_implemented",
+                result_data={"error_type": "not_implemented", "action_type": action.type},
             )
         return spec.handler(state, action)
 
@@ -125,6 +126,7 @@ class TransitionEngine:
                 success=False,
                 message=validation_error[1],
                 error_type=validation_error[0],
+                result_data={"error_type": validation_error[0]},
             ), StepEffects()
 
         applied_cost = apply_action_costs(working_state, action.type)
@@ -198,7 +200,9 @@ class TransitionEngine:
         effects: StepEffects,
         snapshot: StepSnapshot,
     ) -> StepResult:
-        payload = execution.payload_builder(state) if execution.success and execution.payload_builder else {}
+        payload = dict(execution.result_data or {})
+        if execution.payload_builder:
+            payload.update(execution.payload_builder(state))
         return StepResult(
             success=execution.success,
             observation=snapshot.observation,
