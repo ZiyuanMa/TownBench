@@ -9,6 +9,7 @@ from engine.state import (
     ActionCost,
     AgentState,
     Area,
+    DynamicRule,
     Location,
     ObjectActionEffect,
     TerminationConfig,
@@ -147,5 +148,6 @@ class ScenarioConfig(BaseModel):
     objects: list[ScenarioObjectSource] = Field(default_factory=list)
     skills: list[ScenarioSkillSource] = Field(default_factory=list)
     action_costs: dict[str, ActionCost] = Field(default_factory=dict)
+    dynamic_rules: list[DynamicRule] = Field(default_factory=list)
     event_rules: list[WorldEventRule] = Field(default_factory=list)
     termination_config: TerminationConfig = Field(default_factory=TerminationConfig)

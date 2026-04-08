@@ -1,5 +1,16 @@
 from runtime.env import TownBenchEnv
-from engine.state import ActionCost, Area, Location, ObjectActionEffect, WorldEventRule
+from engine.state import (
+    ActionCost,
+    Area,
+    DynamicCondition,
+    DynamicRule,
+    DynamicRuleApplication,
+    Location,
+    ObjectActionEffect,
+    ObjectDynamicOverride,
+    TimeWindow,
+    WorldEventRule,
+)
 
 
 def test_move_to_updates_agent_location(minimal_world_state):
@@ -257,6 +268,101 @@ def test_call_action_clamps_negative_carry_limit_to_zero(minimal_world_state):
     assert env.state.agent.stats == {"carry_limit": 0}
     assert disabled.data["stats"] == {"carry_limit": 0}
     assert gated.success is True
+
+
+def test_call_action_reports_temporarily_unavailable_when_disabled_by_dynamic_rule(minimal_world_state):
+    state = minimal_world_state.model_copy(deep=True)
+    state.agent.location_id = "market"
+    state.objects["counter"].actionable = True
+    state.objects["counter"].action_ids = ["buy_snack"]
+    state.objects["counter"].visible_state = {"open": True}
+    state.objects["counter"].action_effects = {
+        "buy_snack": ObjectActionEffect(
+            message="Bought a snack.",
+            required_money=2,
+            money_delta=-2,
+            inventory_delta={"snack": 1},
+        )
+    }
+    state.dynamic_rules = [
+        DynamicRule(
+            rule_id="counter_closed_early",
+            when=DynamicCondition(time_window=TimeWindow(start="17:00", end="08:30")),
+            apply=DynamicRuleApplication(
+                object_overrides={
+                    "counter": ObjectDynamicOverride(
+                        visible_state={"open": False},
+                        disabled_actions=["buy_snack"],
+                    )
+                }
+            ),
+        )
+    ]
+    env = TownBenchEnv(state)
+    env.reset()
+
+    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "buy_snack"}})
+
+    assert result.success is False
+    assert result.warnings == ["action_temporarily_unavailable"]
+    assert result.data["current_time"] == "Day 1, 08:00"
+    assert result.data["dynamic_reason"] == "disabled_by_dynamic_rule"
+    assert result.data["visible_state"] == {"open": False}
+
+
+def test_call_action_can_run_when_higher_priority_rule_reenables_action(minimal_world_state):
+    state = minimal_world_state.model_copy(deep=True)
+    state.agent.location_id = "market"
+    state.agent.money = 5
+    state.current_time = "Day 1, 09:15"
+    state.objects["counter"].actionable = True
+    state.objects["counter"].action_ids = ["buy_snack"]
+    state.objects["counter"].visible_state = {"open": True}
+    state.objects["counter"].action_effects = {
+        "buy_snack": ObjectActionEffect(
+            message="Bought a snack.",
+            required_money=2,
+            money_delta=-2,
+            inventory_delta={"snack": 1},
+        )
+    }
+    state.dynamic_rules = [
+        DynamicRule(
+            rule_id="counter_closed",
+            priority=0,
+            when=DynamicCondition(time_window=TimeWindow(start="08:00", end="12:00")),
+            apply=DynamicRuleApplication(
+                object_overrides={
+                    "counter": ObjectDynamicOverride(
+                        visible_state={"open": False},
+                        disabled_actions=["buy_snack"],
+                    )
+                }
+            ),
+        ),
+        DynamicRule(
+            rule_id="snack_window",
+            priority=10,
+            when=DynamicCondition(time_window=TimeWindow(start="09:00", end="10:00")),
+            apply=DynamicRuleApplication(
+                object_overrides={
+                    "counter": ObjectDynamicOverride(
+                        visible_state={"open": True, "special_window": True},
+                        enabled_actions=["buy_snack"],
+                    )
+                }
+            ),
+        ),
+    ]
+    env = TownBenchEnv(state)
+    env.reset()
+
+    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "buy_snack"}})
+
+    assert result.success is True
+    assert result.message == "Bought a snack."
+    assert result.data["inventory"] == {"snack": 1}
+    assert result.data["visible_state"] == {"open": True, "special_window": True}
 
 
 def test_inspect_returns_detached_object_payload(minimal_world_state):

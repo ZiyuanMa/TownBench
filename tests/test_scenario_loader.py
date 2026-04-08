@@ -37,6 +37,21 @@ def test_load_scenario_builds_world_state():
     assert [rule.event_id for rule in state.event_rules] == ["tea_ready_notice", "order_paid_notice"]
     assert state.termination_config.max_steps == 10
     assert state.termination_config.success_world_flags == []
+    assert state.dynamic_rules == []
+
+
+def test_load_phase3_scenario_builds_dynamic_rules():
+    scenario_path = Path(__file__).resolve().parents[1] / "scenarios" / "phase3_town" / "scenario.yaml"
+
+    state = load_scenario(scenario_path)
+
+    assert state.scenario_id == "phase3_town"
+    assert [rule.rule_id for rule in state.dynamic_rules] == [
+        "supply_counter_closed_early",
+        "goods_buyer_morning_surge",
+        "meal_counter_lunch_rush",
+        "pickup_clerk_closed",
+    ]
 
 
 def test_search_is_rejected_and_open_resource_still_works():
@@ -256,6 +271,92 @@ objects:
     )
 
     with pytest.raises(ValueError, match="must not declare `object_ids`"):
+        load_scenario(scenario_file)
+
+
+def test_loader_rejects_dynamic_rule_overriding_unknown_object_action(tmp_path):
+    scenario_file = tmp_path / "bad_dynamic_scenario.yaml"
+    scenario_file.write_text(
+        """
+scenario_id: broken_dynamic
+initial_agent_state:
+  location_id: plaza
+locations:
+  - location_id: plaza
+    name: Plaza
+    description: A plaza.
+objects:
+  - object_id: stall
+    name: Stall
+    object_type: stall
+    location_id: plaza
+    summary: A simple stall.
+    actionable: true
+    action_ids: [buy_item]
+    action_effects:
+      buy_item:
+        message: Bought one item.
+        required_money: 1
+        money_delta: -1
+dynamic_rules:
+  - rule_id: bad_override
+    when:
+      time_window:
+        start: "08:00"
+        end: "09:00"
+    apply:
+      object_overrides:
+        stall:
+          action_overrides:
+            sell_item:
+              money_delta: 2
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="overrides unknown action"):
+        load_scenario(scenario_file)
+
+
+def test_loader_rejects_dynamic_rule_enabling_unknown_object_action(tmp_path):
+    scenario_file = tmp_path / "bad_dynamic_enabled_scenario.yaml"
+    scenario_file.write_text(
+        """
+scenario_id: broken_dynamic
+initial_agent_state:
+  location_id: plaza
+locations:
+  - location_id: plaza
+    name: Plaza
+    description: A plaza.
+objects:
+  - object_id: stall
+    name: Stall
+    object_type: stall
+    location_id: plaza
+    summary: A simple stall.
+    actionable: true
+    action_ids: [buy_item]
+    action_effects:
+      buy_item:
+        message: Bought one item.
+        required_money: 1
+        money_delta: -1
+dynamic_rules:
+  - rule_id: bad_enable
+    when:
+      time_window:
+        start: "08:00"
+        end: "09:00"
+    apply:
+      object_overrides:
+        stall:
+          enabled_actions: [sell_item]
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="enables unknown action"):
         load_scenario(scenario_file)
 
 

@@ -164,7 +164,6 @@ dynamic_rules:
       time_window:
         start: "06:00"
         end: "10:00"
-        repeat_daily: true
     apply:
       object_overrides:
         meal_counter:
@@ -196,7 +195,6 @@ The exact implementation can vary, but the recommended model is:
 - `TimeWindow`
   - `start`
   - `end`
-  - `repeat_daily`
 - `DynamicCondition`
   - initially just `time_window`
   - optionally later combine with flags or agent location
@@ -205,6 +203,7 @@ The exact implementation can vary, but the recommended model is:
 - `ObjectOverride`
   - `visible_state`
   - `disabled_actions`
+  - `enabled_actions`
   - `action_overrides`
 - `DynamicRule`
   - `rule_id`
@@ -279,12 +278,12 @@ dynamic_rules:
       time_window:
         start: "09:00"
         end: "17:00"
-        repeat_daily: true
     apply:
       object_overrides:
         pickup_clerk:
           visible_state:
             open: true
+          enabled_actions: ["collect_service_fee"]
 
   - rule_id: service_depot_closed
     priority: 90
@@ -293,7 +292,6 @@ dynamic_rules:
         time_window:
           start: "09:00"
           end: "17:00"
-          repeat_daily: true
     apply:
       object_overrides:
         pickup_clerk:
@@ -339,7 +337,6 @@ dynamic_rules:
       time_window:
         start: "06:00"
         end: "10:00"
-        repeat_daily: true
     apply:
       object_overrides:
         meal_counter:
@@ -395,7 +392,6 @@ dynamic_rules:
       time_window:
         start: "11:30"
         end: "12:30"
-        repeat_daily: true
     apply:
       object_overrides:
         meal_counter:

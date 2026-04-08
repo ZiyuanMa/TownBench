@@ -5,6 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from engine.dynamics import build_effective_object_view
 from engine.state import AgentState, Area, Location, Skill, WorldObject, WorldState
 
 
@@ -100,6 +101,13 @@ def _project_object(world_object: WorldObject) -> ObjectObservation:
     )
 
 
+def _project_effective_object(state: WorldState, object_id: str) -> ObjectObservation | None:
+    effective_view = build_effective_object_view(state, object_id)
+    if effective_view is None:
+        return None
+    return _project_object(effective_view.object)
+
+
 def _project_skill(skill: Skill) -> SkillObservation:
     return SkillObservation(skill_id=skill.skill_id, name=skill.name, description=skill.description)
 
@@ -122,9 +130,11 @@ def project_observation(state: WorldState) -> Observation:
     if location.area_id is not None and location.area_id in state.areas:
         current_area = _project_area(state.areas[location.area_id])
     visible_objects = [
-        _project_object(state.objects[object_id])
+        projected
         for object_id in location.object_ids
         if object_id in state.objects and state.objects[object_id].location_id == location.location_id
+        for projected in [_project_effective_object(state, object_id)]
+        if projected is not None
     ]
     visible_skills = [_project_skill(skill) for skill in state.skills.values()]
     return Observation(

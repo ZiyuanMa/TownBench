@@ -1,5 +1,16 @@
 from runtime.env import TownBenchEnv
-from engine.state import AgentState, Area, Location, WorldState
+from engine.state import (
+    AgentState,
+    Area,
+    DynamicCondition,
+    DynamicRule,
+    DynamicRuleApplication,
+    Location,
+    ObjectActionEffect,
+    ObjectDynamicOverride,
+    TimeWindow,
+    WorldState,
+)
 
 
 def test_observation_only_shows_current_location_objects(minimal_world_state):
@@ -138,6 +149,39 @@ def test_observation_same_area_does_not_expand_visible_objects(minimal_world_sta
     visible_ids = [item.object_id for item in observation.visible_objects]
     assert visible_ids == ["bulletin"]
     assert "counter" not in visible_ids
+
+
+def test_observation_projects_dynamic_visible_state_and_available_actions(minimal_world_state):
+    state = minimal_world_state.model_copy(deep=True)
+    state.agent.location_id = "market"
+    state.objects["counter"].actionable = True
+    state.objects["counter"].action_ids = ["buy_snack", "buy_drink"]
+    state.objects["counter"].visible_state = {"open": True, "snack_price": 3}
+    state.objects["counter"].action_effects = {
+        "buy_snack": ObjectActionEffect(message="Bought a snack."),
+        "buy_drink": ObjectActionEffect(message="Bought a drink."),
+    }
+    state.dynamic_rules = [
+        DynamicRule(
+            rule_id="counter_closed_early",
+            when=DynamicCondition(time_window=TimeWindow(start="17:00", end="08:30")),
+            apply=DynamicRuleApplication(
+                object_overrides={
+                    "counter": ObjectDynamicOverride(
+                        visible_state={"open": False},
+                        disabled_actions=["buy_snack"],
+                    )
+                }
+            ),
+        )
+    ]
+    state.current_time = "Day 1, 08:00"
+    env = TownBenchEnv(state)
+
+    observation = env.reset()
+
+    assert observation.visible_objects[0].visible_state["open"] is False
+    assert observation.visible_objects[0].action_ids == ["buy_drink"]
 
 
 def test_inspect_requires_current_location_access(minimal_world_state):

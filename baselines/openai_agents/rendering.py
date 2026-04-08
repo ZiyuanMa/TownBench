@@ -71,6 +71,8 @@ def render_initial_observation(
             line = f"- {item.name} ({item.object_id}): {item.summary}"
             if item.action_ids:
                 line += f" Actions: {', '.join(item.action_ids)}."
+            if item.visible_state:
+                line += f" Visible state: {_format_mapping(item.visible_state)}."
             lines.append(line)
 
     if normalized.visible_skills:
@@ -171,6 +173,8 @@ def _render_failure_details(action: Action, data: dict[str, Any]) -> list[str]:
         details.append(f"Requested action: {requested_action}")
     if data.get("current_location_id"):
         details.append(f"Current location: {data['current_location_id']}")
+    if data.get("current_time"):
+        details.append(f"Current time: {data['current_time']}")
     if data.get("reachable_locations"):
         details.append(f"Reachable locations now: {', '.join(data['reachable_locations'])}")
     if data.get("visible_object_ids"):
@@ -179,6 +183,10 @@ def _render_failure_details(action: Action, data: dict[str, Any]) -> list[str]:
         details.append(f"Visible skills now: {', '.join(data['visible_skill_ids'])}")
     if data.get("available_actions"):
         details.append(f"Available actions on target: {', '.join(data['available_actions'])}")
+    if data.get("dynamic_reason"):
+        details.append(f"Dynamic reason: {data['dynamic_reason']}")
+    if data.get("visible_state"):
+        details.append(f"Visible state now: {_format_mapping(data['visible_state'])}")
     if data.get("required_inventory"):
         details.append(f"Required inventory: {_format_mapping(data['required_inventory'])}")
     if data.get("current_inventory"):

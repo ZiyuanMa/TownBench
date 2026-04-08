@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import re
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+CLOCK_TIME_PATTERN = re.compile(r"^\d{2}:\d{2}$")
 
 
 class ActionCost(BaseModel):
@@ -22,6 +25,67 @@ class WorldEventRule(BaseModel):
     set_world_flags: dict[str, bool] = Field(default_factory=dict)
     set_object_visible_state: dict[str, dict[str, Any]] = Field(default_factory=dict)
     trigger_once: bool = True
+
+
+class TimeWindow(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    start: str
+    end: str
+
+    @field_validator("start", "end")
+    @classmethod
+    def validate_clock_time(cls, value: str) -> str:
+        normalized = value.strip()
+        if CLOCK_TIME_PATTERN.match(normalized) is None:
+            raise ValueError(f"Unsupported clock time format: `{value}`.")
+        hour, minute = (int(part) for part in normalized.split(":"))
+        if hour >= 24 or minute >= 60:
+            raise ValueError(f"Unsupported clock time format: `{value}`.")
+        return normalized
+
+
+class DynamicCondition(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    time_window: TimeWindow
+
+
+class ActionEffectOverride(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    money_delta: int | None = None
+    energy_delta: int | None = None
+    inventory_delta: dict[str, int] | None = None
+    required_inventory: dict[str, int] | None = None
+    required_agent_stats: dict[str, int] | None = None
+    required_money: int | None = None
+    set_visible_state: dict[str, Any] | None = None
+    set_world_flags: dict[str, bool] | None = None
+
+
+class ObjectDynamicOverride(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    visible_state: dict[str, Any] = Field(default_factory=dict)
+    disabled_actions: list[str] = Field(default_factory=list)
+    enabled_actions: list[str] = Field(default_factory=list)
+    action_overrides: dict[str, ActionEffectOverride] = Field(default_factory=dict)
+
+
+class DynamicRuleApplication(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    object_overrides: dict[str, ObjectDynamicOverride] = Field(default_factory=dict)
+
+
+class DynamicRule(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    rule_id: str
+    priority: int = 0
+    when: DynamicCondition
+    apply: DynamicRuleApplication = Field(default_factory=DynamicRuleApplication)
 
 
 class TerminationConfig(BaseModel):
@@ -113,6 +177,7 @@ class WorldState(BaseModel):
     public_rules: list[str] = Field(default_factory=list)
     world_flags: dict[str, bool] = Field(default_factory=dict)
     action_costs: dict[str, ActionCost] = Field(default_factory=dict)
+    dynamic_rules: list[DynamicRule] = Field(default_factory=list)
     event_rules: list[WorldEventRule] = Field(default_factory=list)
     termination_config: TerminationConfig = Field(default_factory=TerminationConfig)
     active_event_ids: list[str] = Field(default_factory=list)

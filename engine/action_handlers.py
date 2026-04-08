@@ -4,6 +4,7 @@ from copy import deepcopy
 from typing import Any
 
 from engine.action_models import Action, ActionExecution, PayloadBuilder
+from engine.dynamics import build_effective_object_view
 from engine.rules import apply_state_delta, matches_world_flags
 from engine.state import ActionCost, WorldObject, WorldState
 
@@ -125,11 +126,22 @@ def _handle_inspect(state: WorldState, action: Action) -> ActionExecution:
             },
         )
 
+    effective_view = build_effective_object_view(state, world_object.object_id)
+    if effective_view is None:
+        return _failure(
+            "unknown_target",
+            f"Unknown target `{action.target_id}`.",
+            result_data={
+                "target_id": action.target_id,
+                "visible_object_ids": _visible_object_ids(state),
+            },
+        )
+
     return _success(
         f"Inspected object `{world_object.name}`.",
         payload_builder=lambda current_state, object_id=world_object.object_id: {
             "kind": "object",
-            "object": _serialize_object(current_state.objects[object_id]),
+            "object": _serialize_effective_object(current_state, object_id),
         },
     )
 
@@ -228,6 +240,18 @@ def _handle_call_action(state: WorldState, action: Action) -> ActionExecution:
     world_object = _get_accessible_object(state, action.target_id)
     if isinstance(world_object, ActionExecution):
         return world_object
+    effective_view = build_effective_object_view(state, world_object.object_id)
+    if effective_view is None:
+        return _failure(
+            "unknown_target",
+            f"Unknown target `{action.target_id}`.",
+            result_data={
+                "target_id": action.target_id,
+                "visible_object_ids": _visible_object_ids(state),
+            },
+        )
+
+    effective_object = effective_view.object
     if not world_object.actionable:
         return _failure(
             "not_actionable",
@@ -235,21 +259,31 @@ def _handle_call_action(state: WorldState, action: Action) -> ActionExecution:
             result_data={
                 "target_id": action.target_id,
                 "requested_action": action_name,
-                "available_actions": list(world_object.action_ids),
+                "available_actions": list(effective_object.action_ids),
             },
         )
-    if action_name not in world_object.action_ids:
+    if action_name not in effective_object.action_ids:
+        error_type = "action_not_exposed"
+        message = f"Action `{action_name}` is not exposed on `{action.target_id}` in the current location."
+        if action_name in world_object.action_ids and action_name in effective_view.disabled_actions:
+            error_type = "action_temporarily_unavailable"
+            message = f"Action `{action_name}` on `{action.target_id}` is temporarily unavailable."
         return _failure(
-            "action_not_exposed",
-            f"Action `{action_name}` is not exposed on `{action.target_id}` in the current location.",
+            error_type,
+            message,
             result_data={
                 "target_id": action.target_id,
                 "requested_action": action_name,
-                "available_actions": list(world_object.action_ids),
+                "available_actions": list(effective_object.action_ids),
+                "current_time": state.current_time,
+                "dynamic_reason": (
+                    "disabled_by_dynamic_rule" if error_type == "action_temporarily_unavailable" else None
+                ),
+                "visible_state": deepcopy(effective_object.visible_state),
             },
         )
 
-    effect = world_object.action_effects.get(action_name)
+    effect = effective_object.action_effects.get(action_name)
     if effect is None:
         return _failure(
             "unknown_object_action",
@@ -257,7 +291,7 @@ def _handle_call_action(state: WorldState, action: Action) -> ActionExecution:
             result_data={
                 "target_id": action.target_id,
                 "requested_action": action_name,
-                "available_actions": list(world_object.action_ids),
+                "available_actions": list(effective_object.action_ids),
             },
         )
     if not matches_world_flags(state.world_flags, effect.required_world_flags):
@@ -333,7 +367,8 @@ def _handle_call_action(state: WorldState, action: Action) -> ActionExecution:
             "kind": "action",
             "object_id": object_id,
             "action": action_name,
-            "visible_state": deepcopy(current_state.objects[object_id].visible_state),
+            "current_time": current_state.current_time,
+            "visible_state": _serialize_effective_object(current_state, object_id)["visible_state"],
             "world_flags": dict(current_state.world_flags),
             "money": current_state.agent.money,
             "energy": current_state.agent.energy,
@@ -380,6 +415,13 @@ def _serialize_object(world_object: WorldObject) -> dict[str, Any]:
     )
     data["visible_state"] = deepcopy(world_object.visible_state)
     return data
+
+
+def _serialize_effective_object(state: WorldState, object_id: str) -> dict[str, Any]:
+    effective_view = build_effective_object_view(state, object_id)
+    if effective_view is None:
+        raise RuntimeError(f"Unknown object `{object_id}` while serializing effective object.")
+    return _serialize_object(effective_view.object)
 
 
 def _serialize_agent_status(state: WorldState) -> dict[str, Any]:

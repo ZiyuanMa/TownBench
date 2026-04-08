@@ -36,6 +36,7 @@ def _validate_unique_ids(config: ScenarioConfig) -> None:
     _ensure_unique_ids([item.location_id for item in config.locations], "location")
     _ensure_unique_ids([item.object_id for item in config.objects], "object")
     _ensure_unique_ids([item.skill_id for item in config.skills], "skill")
+    _ensure_unique_ids([item.rule_id for item in config.dynamic_rules], "dynamic rule")
     _ensure_unique_ids([item.event_id for item in config.event_rules], "event rule")
 
 
@@ -100,6 +101,7 @@ def _build_world_state(
         public_rules=list(config.public_rules),
         world_flags=dict(config.initial_world_state.world_flags),
         action_costs={action_type: cost.model_copy(deep=True) for action_type, cost in config.action_costs.items()},
+        dynamic_rules=[rule.model_copy(deep=True) for rule in config.dynamic_rules],
         event_rules=[rule.model_copy(deep=True) for rule in config.event_rules],
         termination_config=config.termination_config.model_copy(deep=True),
         scenario_id=config.scenario_id,
@@ -223,6 +225,30 @@ def _validate_event_rules(
                 raise ValueError(
                     f"Object `{world_object.object_id}` action `{action_name}` references unknown location "
                     f"`{move_target}`."
+                )
+
+    for rule in config.dynamic_rules:
+        for object_id, override in rule.apply.object_overrides.items():
+            world_object = objects.get(object_id)
+            if world_object is None:
+                raise ValueError(f"Dynamic rule `{rule.rule_id}` references unknown object `{object_id}`.")
+            unknown_disabled_actions = sorted(set(override.disabled_actions) - set(world_object.action_ids))
+            if unknown_disabled_actions:
+                action_list = ", ".join(unknown_disabled_actions)
+                raise ValueError(
+                    f"Dynamic rule `{rule.rule_id}` disables unknown action(s) on `{object_id}`: {action_list}."
+                )
+            unknown_enabled_actions = sorted(set(override.enabled_actions) - set(world_object.action_ids))
+            if unknown_enabled_actions:
+                action_list = ", ".join(unknown_enabled_actions)
+                raise ValueError(
+                    f"Dynamic rule `{rule.rule_id}` enables unknown action(s) on `{object_id}`: {action_list}."
+                )
+            unknown_action_overrides = sorted(set(override.action_overrides) - set(world_object.action_ids))
+            if unknown_action_overrides:
+                action_list = ", ".join(unknown_action_overrides)
+                raise ValueError(
+                    f"Dynamic rule `{rule.rule_id}` overrides unknown action(s) on `{object_id}`: {action_list}."
                 )
 
     for rule in config.event_rules:
