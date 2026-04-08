@@ -5,7 +5,7 @@ from typing import Union
 
 import yaml
 
-from engine.rules import inventory_capacity, inventory_load
+from engine.rules import inventory_capacity, inventory_load, parse_time_label
 from engine.state import Area, Location, Skill, WorldObject, WorldState
 from scenario.schema import ScenarioConfig, ScenarioObjectSource
 
@@ -91,7 +91,7 @@ def _build_world_state(
     skills: dict[str, Skill],
 ) -> WorldState:
     return WorldState(
-        current_time=config.initial_world_state.current_time,
+        current_time=parse_time_label(config.initial_world_state.current_time),
         agent=config.initial_agent_state.model_copy(deep=True),
         areas=areas,
         locations=locations,

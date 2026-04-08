@@ -75,6 +75,7 @@ TransitionOutcome                              │
 环境的完整内部状态，包含：
 
 - `agent: AgentState` — 位置、金钱、能量、背包、笔记和数值型 `stats`
+- `current_time: int` — 运行时内部时间，表示自 `Day 1, 00:00` 起累计的分钟数
 - `areas: dict[str, Area]` — 建筑/区域语义分组；仅保存区域元数据，不冗余保存 `location_ids`
 - `locations: dict[str, Location]` — 地图节点及连接；`Location.area_id` 可选指向所属区域
 - `objects: dict[str, WorldObject]` — 可交互物体及其动作效果
@@ -126,7 +127,8 @@ TransitionOutcome                              │
 
 合并顺序为优先级升序；更高 `priority` 的规则后应用并覆盖更低优先级结果。
 Observation 和 `call_action` 都基于 effective view 工作，因此 agent 看到的价格、
-营业状态与真实执行语义保持一致。
+营业状态与真实执行语义保持一致。运行时匹配逻辑直接使用整数分钟；只有在
+observation、payload 和 renderer 边界才格式化为 `Day N, HH:MM` 字符串。
 
 ### Observation (`engine/observation.py`)
 

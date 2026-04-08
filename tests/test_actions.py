@@ -41,7 +41,7 @@ def test_apply_action_costs_uses_shared_state_delta_logic(minimal_world_state):
         energy_delta=-5,
         inventory_delta={"apple": -1, "ticket": 1},
     )
-    assert minimal_world_state.current_time == "Day 1, 08:02"
+    assert minimal_world_state.current_time == 8 * 60 + 2
     assert minimal_world_state.agent.money == 24
     assert minimal_world_state.agent.energy == 95
     assert minimal_world_state.agent.inventory == {"ticket": 1}

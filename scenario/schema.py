@@ -3,8 +3,9 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from engine.rules import parse_time_label
 from engine.state import (
     ActionCost,
     AgentState,
@@ -32,6 +33,12 @@ class ScenarioInitialWorldState(BaseModel):
 
     current_time: str = "Day 1, 08:00"
     world_flags: dict[str, bool] = Field(default_factory=dict)
+
+    @field_validator("current_time")
+    @classmethod
+    def validate_current_time(cls, value: str) -> str:
+        parse_time_label(value)
+        return value.strip()
 
 
 class ScenarioAreaSource(BaseModel):

@@ -166,7 +166,7 @@ class Skill(BaseModel):
 
 
 class WorldState(BaseModel):
-    current_time: str = "Day 1, 08:00"
+    current_time: int = 8 * 60
     agent: AgentState
     areas: dict[str, Area] = Field(default_factory=dict)
     locations: dict[str, Location]

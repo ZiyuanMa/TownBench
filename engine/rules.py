@@ -11,7 +11,7 @@ TIME_PATTERN = re.compile(r"^Day (?P<day>\d+), (?P<hour>\d{2}):(?P<minute>\d{2})
 def apply_state_delta(state: WorldState, delta: ActionCost) -> ActionCost:
     applied = delta.model_copy(deep=True)
     if applied.time_delta:
-        state.current_time = advance_time_label(state.current_time, applied.time_delta)
+        state.current_time = advance_time(state.current_time, applied.time_delta)
     if applied.money_delta:
         state.agent.money += applied.money_delta
     if applied.energy_delta:
@@ -139,10 +139,16 @@ def evaluate_termination(state: WorldState, *, step_id: int) -> tuple[bool, str 
     return False, None
 
 
-def advance_time_label(value: str, minutes: int) -> str:
-    total_minutes = parse_time_label(value) + minutes
+def advance_time(total_minutes: int, minutes: int) -> int:
+    updated_total_minutes = total_minutes + minutes
+    if updated_total_minutes < 0:
+        return 0
+    return updated_total_minutes
+
+
+def format_time_label(total_minutes: int) -> str:
     if total_minutes < 0:
-        total_minutes = 0
+        raise ValueError(f"Time must be non-negative: `{total_minutes}`.")
     day, minute_of_day = divmod(total_minutes, 24 * 60)
     hour, minute = divmod(minute_of_day, 60)
     return f"Day {day + 1}, {hour:02d}:{minute:02d}"
@@ -161,6 +167,12 @@ def parse_time_label(value: str) -> int:
     if hour >= 24 or minute >= 60:
         raise ValueError(f"Unsupported time format: `{value}`.")
     return (day - 1) * 24 * 60 + hour * 60 + minute
+
+
+def minute_of_day(total_minutes: int) -> int:
+    if total_minutes < 0:
+        raise ValueError(f"Time must be non-negative: `{total_minutes}`.")
+    return total_minutes % (24 * 60)
 
 
 def matches_world_flags(current_flags: dict[str, bool], required_flags: dict[str, bool]) -> bool:

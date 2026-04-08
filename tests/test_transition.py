@@ -36,7 +36,7 @@ def test_move_to_current_location_is_a_successful_no_op(minimal_world_state):
     assert env.state.agent.location_id == "plaza"
     assert result.time_delta == 10
     assert result.energy_delta == -2
-    assert env.state.current_time == "Day 1, 08:10"
+    assert env.state.current_time == 8 * 60 + 10
 
 
 def test_invalid_move_is_structured_failure(minimal_world_state):
@@ -301,7 +301,7 @@ def test_call_action_can_run_when_higher_priority_rule_reenables_action(minimal_
     state = minimal_world_state.model_copy(deep=True)
     state.agent.location_id = "market"
     state.agent.money = 5
-    state.current_time = "Day 1, 09:15"
+    state.current_time = (9 * 60) + 15
     state.objects["counter"].actionable = True
     state.objects["counter"].action_ids = ["buy_snack"]
     state.objects["counter"].visible_state = {"open": True}
@@ -408,7 +408,7 @@ def test_successful_steps_apply_time_and_energy_costs(minimal_world_state):
     assert result.success is True
     assert result.time_delta == 10
     assert result.energy_delta == -2
-    assert env.state.current_time == "Day 1, 08:10"
+    assert env.state.current_time == 8 * 60 + 10
     assert env.state.agent.energy == 98
 
 
@@ -421,7 +421,7 @@ def test_failed_steps_do_not_apply_resource_deltas(minimal_world_state):
     assert result.success is False
     assert result.time_delta == 0
     assert result.energy_delta == 0
-    assert env.state.current_time == "Day 1, 08:00"
+    assert env.state.current_time == 8 * 60
     assert env.state.agent.energy == 100
 
 

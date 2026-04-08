@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
-from engine.rules import parse_time_label
 from engine.state import WorldState
 from engine.trace import TraceEntry
 
@@ -40,9 +39,8 @@ def score_episode(trace: list[TraceEntry], final_state: WorldState) -> EpisodeSc
     )
 
 
-def _extract_survived_days(current_time: str) -> int:
-    total_minutes = parse_time_label(current_time)
-    return total_minutes // (24 * 60) + 1
+def _extract_survived_days(current_time: int) -> int:
+    return current_time // (24 * 60) + 1
 
 
 def _build_summary(

@@ -32,7 +32,8 @@ agent must schedule, reprioritize, and react to opportunity cost.
 Today TownBench already tracks authored time labels and static event rules, but
 its main interaction model is still effectively static:
 
-- `current_time` is primarily a display label advanced by action costs.
+- `current_time` is surfaced to the agent as a display label, but runtime logic
+  should treat time as a numeric value advanced by action costs.
 - `event_rules` are driven by `world_flags`, which works well for authored state
   machines and notices.
 - object action behavior is authored statically in `action_effects`.

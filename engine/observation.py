@@ -6,6 +6,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from engine.dynamics import build_effective_object_view
+from engine.rules import format_time_label
 from engine.state import AgentState, Area, Location, Skill, WorldObject, WorldState
 
 
@@ -136,7 +137,7 @@ def project_observation(state: WorldState) -> Observation:
     ]
     visible_skills = [_project_skill(skill) for skill in state.skills.values()]
     return Observation(
-        current_time=state.current_time,
+        current_time=format_time_label(state.current_time),
         agent=_project_agent(state.agent),
         current_location=_project_location(location),
         current_area=current_area,

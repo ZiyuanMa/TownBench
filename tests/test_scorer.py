@@ -58,7 +58,7 @@ def test_score_episode_keeps_non_terminal_trace_in_progress(minimal_world_state)
 
 def test_score_episode_uses_days_and_money_as_core_metrics(minimal_world_state):
     state = minimal_world_state.model_copy(deep=True)
-    state.current_time = "Day 3, 09:00"
+    state.current_time = (2 * 24 * 60) + (9 * 60)
     state.agent.money = -4
     trace = [
         TraceEntry(

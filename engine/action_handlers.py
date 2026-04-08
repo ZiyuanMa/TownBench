@@ -5,7 +5,7 @@ from typing import Any
 
 from engine.action_models import Action, ActionExecution, PayloadBuilder
 from engine.dynamics import build_effective_object_view
-from engine.rules import apply_state_delta, matches_world_flags
+from engine.rules import apply_state_delta, format_time_label, matches_world_flags
 from engine.state import ActionCost, WorldObject, WorldState
 
 
@@ -266,7 +266,7 @@ def _handle_call_action(state: WorldState, action: Action) -> ActionExecution:
                 "target_id": action.target_id,
                 "requested_action": action_name,
                 "available_actions": list(effective_object.action_ids),
-                "current_time": state.current_time,
+                "current_time": format_time_label(state.current_time),
                 "dynamic_reason": (
                     "disabled_by_dynamic_rule" if error_type == "action_temporarily_unavailable" else None
                 ),
@@ -358,7 +358,7 @@ def _handle_call_action(state: WorldState, action: Action) -> ActionExecution:
             "kind": "action",
             "object_id": object_id,
             "action": action_name,
-            "current_time": current_state.current_time,
+            "current_time": format_time_label(current_state.current_time),
             "visible_state": _serialize_effective_object(current_state, object_id)["visible_state"],
             "world_flags": dict(current_state.world_flags),
             "money": current_state.agent.money,
@@ -417,7 +417,7 @@ def _serialize_effective_object(state: WorldState, object_id: str) -> dict[str, 
 
 def _serialize_agent_status(state: WorldState) -> dict[str, Any]:
     return {
-        "current_time": state.current_time,
+        "current_time": format_time_label(state.current_time),
         **state.agent.model_dump(include={"location_id", "money", "energy", "inventory", "status_effects", "stats"}),
     }
 

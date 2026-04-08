@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from engine.rules import parse_time_label
+from engine.rules import minute_of_day
 from engine.state import DynamicRule, ObjectActionEffect, TimeWindow, WorldObject, WorldState
 
 
@@ -16,12 +16,12 @@ class EffectiveObjectView:
 def resolve_active_dynamic_rules(
     state: WorldState,
     *,
-    at_time: str | None = None,
+    at_time: int | None = None,
 ) -> list[DynamicRule]:
     active_rules = [
         rule
         for rule in state.dynamic_rules
-        if matches_time_window((at_time or state.current_time), rule.when.time_window)
+        if matches_time_window((state.current_time if at_time is None else at_time), rule.when.time_window)
     ]
     return sorted(active_rules, key=lambda rule: rule.priority)
 
@@ -30,7 +30,7 @@ def build_effective_object_view(
     state: WorldState,
     object_id: str,
     *,
-    at_time: str | None = None,
+    at_time: int | None = None,
 ) -> EffectiveObjectView | None:
     world_object = state.objects.get(object_id)
     if world_object is None:
@@ -80,7 +80,7 @@ def build_effective_action_effect(
     object_id: str,
     action_name: str,
     *,
-    at_time: str | None = None,
+    at_time: int | None = None,
 ) -> ObjectActionEffect | None:
     effective_view = build_effective_object_view(state, object_id, at_time=at_time)
     if effective_view is None:
@@ -99,16 +99,16 @@ def apply_action_effect_override(
     return updated_effect
 
 
-def matches_time_window(current_time: str, time_window: TimeWindow) -> bool:
-    minute_of_day = parse_time_label(current_time) % (24 * 60)
+def matches_time_window(current_time: int, time_window: TimeWindow) -> bool:
+    current_minute_of_day = minute_of_day(current_time)
     start = parse_clock_time(time_window.start)
     end = parse_clock_time(time_window.end)
 
     if start == end:
         return True
     if start < end:
-        return start <= minute_of_day < end
-    return minute_of_day >= start or minute_of_day < end
+        return start <= current_minute_of_day < end
+    return current_minute_of_day >= start or current_minute_of_day < end
 
 
 def parse_clock_time(value: str) -> int:

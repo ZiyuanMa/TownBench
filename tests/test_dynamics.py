@@ -1,4 +1,5 @@
 from engine.dynamics import build_effective_object_view, matches_time_window
+from engine.rules import format_time_label, parse_time_label
 from engine.state import (
     DynamicCondition,
     DynamicRule,
@@ -12,11 +13,18 @@ from engine.state import (
 def test_matches_time_window_supports_cross_midnight():
     window = TimeWindow(start="17:00", end="08:30")
 
-    assert matches_time_window("Day 1, 07:45", window) is True
-    assert matches_time_window("Day 2, 07:45", window) is True
-    assert matches_time_window("Day 1, 08:30", window) is False
-    assert matches_time_window("Day 1, 16:59", window) is False
-    assert matches_time_window("Day 1, 17:00", window) is True
+    assert matches_time_window(parse_time_label("Day 1, 07:45"), window) is True
+    assert matches_time_window(parse_time_label("Day 2, 07:45"), window) is True
+    assert matches_time_window(parse_time_label("Day 1, 08:30"), window) is False
+    assert matches_time_window(parse_time_label("Day 1, 16:59"), window) is False
+    assert matches_time_window(parse_time_label("Day 1, 17:00"), window) is True
+
+
+def test_time_labels_round_trip_through_integer_minutes():
+    total_minutes = parse_time_label("Day 3, 09:15")
+
+    assert total_minutes == (2 * 24 * 60) + (9 * 60) + 15
+    assert format_time_label(total_minutes) == "Day 3, 09:15"
 
 
 def test_effective_object_view_applies_overrides_without_mutating_base_state(minimal_world_state):
@@ -62,12 +70,12 @@ def test_effective_object_view_applies_overrides_without_mutating_base_state(min
         ),
     ]
 
-    early_view = build_effective_object_view(state, "counter", at_time="Day 1, 08:00")
+    early_view = build_effective_object_view(state, "counter", at_time=8 * 60)
     assert early_view is not None
     assert early_view.object.visible_state == {"open": False, "snack_price": 3}
     assert early_view.object.action_ids == ["buy_drink"]
 
-    discount_view = build_effective_object_view(state, "counter", at_time="Day 1, 09:15")
+    discount_view = build_effective_object_view(state, "counter", at_time=(9 * 60) + 15)
     assert discount_view is not None
     assert discount_view.object.visible_state == {"open": True, "snack_price": 1}
     assert discount_view.object.action_ids == ["buy_snack", "buy_drink"]
@@ -119,13 +127,13 @@ def test_higher_priority_rule_can_reenable_action(minimal_world_state):
         ),
     ]
 
-    closed_view = build_effective_object_view(state, "counter", at_time="Day 1, 08:30")
+    closed_view = build_effective_object_view(state, "counter", at_time=(8 * 60) + 30)
     assert closed_view is not None
     assert closed_view.object.visible_state == {"open": False}
     assert closed_view.object.action_ids == []
     assert closed_view.disabled_actions == ("buy_drink", "buy_snack")
 
-    reopened_view = build_effective_object_view(state, "counter", at_time="Day 1, 09:15")
+    reopened_view = build_effective_object_view(state, "counter", at_time=(9 * 60) + 15)
     assert reopened_view is not None
     assert reopened_view.object.visible_state == {"open": True, "special_window": True}
     assert reopened_view.object.action_ids == ["buy_snack"]

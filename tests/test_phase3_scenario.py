@@ -75,15 +75,15 @@ def test_phase3_dynamic_windows_reward_time_sensitive_loops():
     env.step({"type": "move_to", "target_id": "market"})
 
     _run_tea_loop(env)
-    assert env.state.current_time == "Day 1, 09:48"
+    assert env.state.current_time == (9 * 60) + 48
     assert env.state.agent.money == 25
 
     _run_meal_loop(env)
-    assert env.state.current_time == "Day 1, 10:36"
+    assert env.state.current_time == (10 * 60) + 36
     assert env.state.agent.money == 31
 
     _run_repair_loop_from_canteen(env)
-    assert env.state.current_time == "Day 1, 11:48"
+    assert env.state.current_time == (11 * 60) + 48
     assert env.state.agent.money == 41
     assert env.state.agent.inventory == {}
     assert env.state.agent.location_id == "service_depot"

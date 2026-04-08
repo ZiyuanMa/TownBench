@@ -175,7 +175,7 @@ def test_observation_projects_dynamic_visible_state_and_available_actions(minima
             ),
         )
     ]
-    state.current_time = "Day 1, 08:00"
+    state.current_time = 8 * 60
     env = TownBenchEnv(state)
 
     observation = env.reset()

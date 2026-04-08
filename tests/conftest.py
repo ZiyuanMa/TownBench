@@ -13,7 +13,7 @@ from engine.state import AgentState, Location, Skill, WorldObject, WorldState
 @pytest.fixture()
 def minimal_world_state() -> WorldState:
     return WorldState(
-        current_time="Day 1, 08:00",
+        current_time=8 * 60,
         agent=AgentState(location_id="plaza", money=20, energy=100),
         locations={
             "plaza": Location(
