@@ -91,8 +91,8 @@ TransitionOutcome                              │
 
 ### Action 与 ActionSpec (`engine/actions.py`, `engine/action_models.py`)
 
-7 种内置动作类型：`move_to` / `inspect` / `open_resource` / `load_skill` /
-`check_status` / `write_note` / `call_action`。
+6 种内置动作类型：`move_to` / `inspect` / `open_resource` / `load_skill` /
+`check_status` / `call_action`。
 
 共享 action 数据模型位于 `engine/action_models.py`：
 - `Action` — Agent 提交的标准化动作

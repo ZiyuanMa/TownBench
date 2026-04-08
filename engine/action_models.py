@@ -13,7 +13,6 @@ ActionType = Literal[
     "open_resource",
     "load_skill",
     "check_status",
-    "write_note",
     "call_action",
 ]
 

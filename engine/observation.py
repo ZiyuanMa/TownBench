@@ -14,7 +14,6 @@ class AgentObservation(BaseModel):
     money: int
     energy: int
     inventory: dict[str, int] = Field(default_factory=dict)
-    notes: list[str] = Field(default_factory=list)
     status_effects: list[str] = Field(default_factory=list)
     stats: dict[str, int] = Field(default_factory=dict)
 
@@ -65,7 +64,6 @@ def _project_agent(agent: AgentState) -> AgentObservation:
         money=agent.money,
         energy=agent.energy,
         inventory=dict(agent.inventory),
-        notes=list(agent.notes),
         status_effects=list(agent.status_effects),
         stats=dict(agent.stats),
     )
@@ -156,5 +154,4 @@ def summarize_observation(observation: Observation) -> dict[str, Any]:
         "nearby_location_ids": list(observation.nearby_locations),
         "visible_object_ids": [item.object_id for item in observation.visible_objects],
         "visible_skill_ids": [item.skill_id for item in observation.visible_skills],
-        "note_count": len(observation.agent.notes),
     }

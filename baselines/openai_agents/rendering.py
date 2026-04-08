@@ -58,8 +58,6 @@ def render_initial_observation(
     )
     if agent.inventory:
         lines.append(f"Inventory: {_format_mapping(agent.inventory)}")
-    if agent.notes:
-        lines.append(f"Notes: {'; '.join(agent.notes)}")
     if agent.status_effects:
         lines.append(f"Status effects: {', '.join(agent.status_effects)}")
     if agent.stats:
@@ -111,8 +109,6 @@ def _render_success_details(action: Action, data: dict[str, Any]) -> list[str]:
         ]
         if status.get("inventory"):
             details.append(f"Inventory: {_format_mapping(status['inventory'])}")
-        if status.get("notes"):
-            details.append(f"Notes: {'; '.join(status['notes'])}")
         if status.get("status_effects"):
             details.append(f"Status effects: {', '.join(status['status_effects'])}")
         if status.get("stats"):

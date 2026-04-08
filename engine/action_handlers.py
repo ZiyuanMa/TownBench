@@ -146,15 +146,6 @@ def _handle_inspect(state: WorldState, action: Action) -> ActionExecution:
     )
 
 
-def _handle_write_note(state: WorldState, action: Action) -> ActionExecution:
-    text = str(action.args.get("text", "")).strip()
-    if not text:
-        return _failure("missing_text", "write_note requires non-empty `args.text`.")
-
-    state.agent.notes.append(text)
-    return _success("Note saved.")
-
-
 def _handle_open_resource(state: WorldState, action: Action) -> ActionExecution:
     if not action.target_id:
         return _failure(
@@ -427,9 +418,7 @@ def _serialize_effective_object(state: WorldState, object_id: str) -> dict[str, 
 def _serialize_agent_status(state: WorldState) -> dict[str, Any]:
     return {
         "current_time": state.current_time,
-        **state.agent.model_dump(
-            include={"location_id", "money", "energy", "inventory", "notes", "status_effects", "stats"}
-        ),
+        **state.agent.model_dump(include={"location_id", "money", "energy", "inventory", "status_effects", "stats"}),
     }
 
 

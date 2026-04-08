@@ -10,7 +10,6 @@ from engine.action_handlers import (
     _handle_load_skill,
     _handle_move_to,
     _handle_open_resource,
-    _handle_write_note,
 )
 from engine.action_models import Action, ActionExecution, ActionHandler, ActionType
 from engine.rules import apply_state_delta
@@ -97,22 +96,11 @@ _ACTION_SPEC_LIST: tuple[ActionSpec, ...] = (
         action_type="check_status",
         tool=ActionToolSpec(
             name="check_status",
-            description="Check the agent status, including location, money, energy, inventory, notes and stats.",
+            description="Check the agent status, including location, money, energy, inventory and stats.",
             parameters=(),
             build_action=lambda: Action(type="check_status"),
         ),
         handler=_handle_check_status,
-    ),
-    ActionSpec(
-        action_type="write_note",
-        default_cost=ActionCost(time_delta=1),
-        tool=ActionToolSpec(
-            name="write_note",
-            description="Write a note into the agent's notebook.",
-            parameters=(ActionToolParameter("text"),),
-            build_action=lambda text: Action(type="write_note", args={"text": text}),
-        ),
-        handler=_handle_write_note,
     ),
     ActionSpec(
         action_type="call_action",

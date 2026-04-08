@@ -104,7 +104,6 @@ class AgentState(BaseModel):
     money: int = 0
     energy: int = 100
     inventory: dict[str, int] = Field(default_factory=dict)
-    notes: list[str] = Field(default_factory=list)
     status_effects: list[str] = Field(default_factory=list)
     stats: dict[str, int] = Field(default_factory=dict)
 

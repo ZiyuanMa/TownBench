@@ -134,18 +134,6 @@ def test_move_to_without_areas_still_depends_only_on_links(minimal_world_state):
     assert env.state.agent.location_id == "plaza"
 
 
-def test_write_note_appends_note_and_status_reflects_it(minimal_world_state):
-    env = TownBenchEnv(minimal_world_state)
-    env.reset()
-
-    write_result = env.step({"type": "write_note", "args": {"text": "buy apples"}})
-    status_result = env.step({"type": "check_status"})
-
-    assert write_result.success is True
-    assert env.state.agent.notes == ["buy apples"]
-    assert status_result.data["agent_status"]["notes"] == ["buy apples"]
-
-
 def test_check_status_returns_structured_agent_status_payload(minimal_world_state):
     env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
     env.reset()
@@ -162,7 +150,6 @@ def test_check_status_returns_structured_agent_status_payload(minimal_world_stat
         "money": 20,
         "energy": 100,
         "inventory": {"apple": 2},
-        "notes": [],
         "status_effects": ["focused"],
         "stats": {"carry_limit": 3},
     }
