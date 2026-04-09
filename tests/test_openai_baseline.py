@@ -137,6 +137,8 @@ def test_build_townbench_tools_executes_env_steps_in_json_mode():
     assert move_result["success"] is True
     assert brew_result["success"] is True
     assert payout_result["success"] is True
+    assert move_result["observation"]["current_location"]["location_id"] == "workshop"
+    assert brew_result["observation"]["visible_objects"][0]["visible_state"] == {"brewed_today": True}
     assert env.state.world_flags["tea_ready"] is False
     assert env.state.world_flags["order_logged"] is False
     assert env.state.world_flags["payment_posted"] is True
@@ -154,6 +156,20 @@ def test_build_townbench_tools_returns_text_by_default():
     assert isinstance(move_result, str)
     assert "Moved to `Workshop`." in move_result
     assert "Effects: time +12, energy -3" in move_result
+    assert "Current snapshot:" in move_result
+    assert "Location: Workshop (workshop)" in move_result
+
+
+def test_observation_snapshot_omits_empty_action_lists():
+    scenario_path = Path(__file__).resolve().parents[1] / "scenarios" / "demo_town" / "scenario.yaml"
+    env = TownBenchEnv(load_scenario(scenario_path))
+    env.reset()
+    tools = {tool.__name__: tool for tool in build_townbench_tools(env, function_tool_decorator=_identity_tool)}
+
+    move_result = tools["move_to"]("workshop")
+
+    assert "- Storage Shelf (storage_shelf)" in move_result
+    assert "- Storage Shelf (storage_shelf) Actions:" not in move_result
 
 
 def test_render_tool_result_failure_includes_correction_context():

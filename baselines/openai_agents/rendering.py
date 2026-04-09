@@ -95,6 +95,8 @@ def _render_text_tool_result(action: Action, result: StepResult) -> str:
     delta_line = _render_delta_line(result)
     if delta_line:
         sections.append(delta_line)
+    if _should_render_observation_snapshot(action, result):
+        sections.extend(_render_observation_snapshot(result.observation))
     return "\n".join(sections)
 
 
@@ -215,6 +217,49 @@ def _render_delta_line(result: StepResult) -> str | None:
     if not parts:
         return None
     return "Effects: " + ", ".join(parts)
+
+
+def _should_render_observation_snapshot(action: Action, result: StepResult) -> bool:
+    if not result.success:
+        return False
+    return action.type in {"move_to", "call_action"}
+
+
+def _render_observation_snapshot(observation: Observation) -> list[str]:
+    agent = observation.agent
+    location = observation.current_location
+    lines = [
+        "Current snapshot:",
+        f"Time: {observation.current_time}",
+        f"Location: {location.name} ({location.location_id})",
+    ]
+    if observation.nearby_locations:
+        lines.append(f"Nearby: {', '.join(observation.nearby_locations)}")
+    lines.append(f"Money: {agent.money}")
+    lines.append(f"Energy: {agent.energy}")
+    inventory = agent.inventory
+    if inventory:
+        lines.append(f"Inventory: {_format_mapping(inventory)}")
+    stats = agent.stats
+    if stats:
+        lines.append(f"Stats: {_format_mapping(stats)}")
+
+    if observation.visible_objects:
+        lines.append("Visible objects:")
+        for item in observation.visible_objects:
+            object_line = f"- {item.name} ({item.object_id})"
+            if item.action_ids:
+                object_line += f" Actions: {', '.join(item.action_ids)}."
+            visible_state = item.visible_state
+            if visible_state:
+                object_line += f" Visible state: {_format_mapping(visible_state)}."
+            lines.append(object_line)
+
+    if observation.visible_skills:
+        lines.append("Visible skills:")
+        for item in observation.visible_skills:
+            lines.append(f"- {item.name} ({item.skill_id})")
+    return lines
 
 
 def _format_mapping(values: dict[str, Any]) -> str:

@@ -51,6 +51,23 @@ def test_invalid_move_is_structured_failure(minimal_world_state):
     assert env.get_trace()[0].error_type == "unknown_location"
 
 
+def test_non_snapshot_tools_keep_their_existing_payloads(minimal_world_state):
+    env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
+    env.reset()
+    env.state.objects["bulletin"].readable = True
+    env.state.objects["bulletin"].resource_content = "Town market opens at eight."
+
+    check_status = env.step({"type": "check_status"})
+    inspect_result = env.step({"type": "inspect", "target_id": "plaza"})
+    open_resource = env.step({"type": "open_resource", "target_id": "bulletin"})
+    load_skill = env.step({"type": "load_skill", "target_id": "safety_basics"})
+
+    assert check_status.data["agent_status"]["location_id"] == "plaza"
+    assert inspect_result.data["kind"] == "location"
+    assert open_resource.data["object_id"] == "bulletin"
+    assert load_skill.data["skill_id"] == "safety_basics"
+
+
 def test_move_to_allows_same_area_locations_without_explicit_links(minimal_world_state):
     state = minimal_world_state.model_copy(deep=True)
     state.areas = {
@@ -793,6 +810,33 @@ def test_call_action_can_apply_energy_inventory_and_location_changes(minimal_wor
     assert env.state.agent.inventory == {"ticket": 1}
     assert result.data["location_id"] == "plaza"
     assert result.data["inventory"] == {"ticket": 1}
+    assert result.observation.current_location.location_id == "plaza"
+    assert result.observation.agent.inventory == {"ticket": 1}
+
+
+def test_call_action_updates_observation_when_visible_state_changes_without_resource_deltas(
+    minimal_world_state,
+):
+    env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
+    env.reset()
+    env.state.action_costs["call_action"] = ActionCost()
+    env.state.objects["counter"].actionable = True
+    env.state.objects["counter"].action_ids = ["mark_sold"]
+    env.state.objects["counter"].action_effects = {
+        "mark_sold": ObjectActionEffect(
+            message="Marked the counter as sold out.",
+            set_visible_state={"open": False, "sold_out": True},
+        )
+    }
+    env.step({"type": "move_to", "target_id": "market"})
+
+    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "mark_sold"}})
+
+    assert result.success is True
+    assert result.energy_delta == 0
+    assert [item.object_id for item in result.observation.visible_objects] == ["counter"]
+    assert result.observation.visible_objects[0].action_ids == ["mark_sold"]
+    assert result.observation.visible_objects[0].visible_state == {"open": False, "sold_out": True}
 
 
 def test_call_action_teleport_ignores_area_reachability(minimal_world_state):
