@@ -21,7 +21,7 @@ from baselines.base import (
 )
 from baselines.openai_agents.agent import build_openai_agent
 from baselines.openai_agents.config import OpenAIAgentsConfig
-from baselines.openai_agents.rendering import render_initial_observation
+from engine.rendering import render_initial_observation
 from runtime.env import TownBenchEnv
 
 TextDeltaHandler = Callable[[str], None]
@@ -139,10 +139,7 @@ def _prepare_episode_run(
         initial_input=build_episode_initial_input(
             opening_briefing=active_env.state.opening_briefing,
             public_rules=active_env.state.public_rules,
-            initial_observation=render_initial_observation(
-                initial_observation,
-                mode=resolved_config.tool_output_format,
-            ),
+            initial_observation=render_initial_observation(initial_observation),
         ),
         run_config=RunConfig(tracing_disabled=resolved_config.tracing_disabled),
     )

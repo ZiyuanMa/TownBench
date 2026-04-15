@@ -5,9 +5,8 @@ from agents.exceptions import MaxTurnsExceeded
 from agents import AgentUpdatedStreamEvent, RawResponsesStreamEvent, RunItemStreamEvent
 from openai.types.responses.response_text_delta_event import ResponseTextDeltaEvent
 
-from baselines.openai_agents.agent import build_openai_agent
+from baselines.openai_agents.agent import build_default_instructions, build_openai_agent
 from baselines.openai_agents.config import OpenAIAgentsConfig
-from baselines.openai_agents.rendering import render_initial_observation, render_tool_result
 from baselines.openai_agents.runner import (
     run_openai_agents_episode,
     run_openai_agents_episode_streamed,
@@ -121,24 +120,22 @@ class _FakeToolOutputItem:
     output = '{"success": true}'
 
 
-def test_build_townbench_tools_executes_env_steps_in_json_mode():
+def test_build_townbench_tools_executes_env_steps():
     scenario_path = Path(__file__).resolve().parents[1] / "scenarios" / "demo_town" / "scenario.yaml"
     env = TownBenchEnv(load_scenario(scenario_path))
     env.reset()
-    tools = {
-        tool.__name__: tool
-        for tool in build_townbench_tools(env, function_tool_decorator=_identity_tool, output_format="json")
-    }
+    tools = {tool.__name__: tool for tool in build_townbench_tools(env, function_tool_decorator=_identity_tool)}
 
     move_result = tools["move_to"]("workshop")
     brew_result = tools["call_action"]("tea_station", "brew_tea")
     payout_result = tools["call_action"]("completion_log", "record_order")
 
-    assert move_result["success"] is True
-    assert brew_result["success"] is True
-    assert payout_result["success"] is True
-    assert move_result["observation"]["current_location"]["location_id"] == "workshop"
-    assert brew_result["observation"]["visible_objects"][0]["visible_state"] == {"brewed_today": True}
+    assert isinstance(move_result, str)
+    assert isinstance(brew_result, str)
+    assert isinstance(payout_result, str)
+    assert "Moved to `Workshop`." in move_result
+    assert "You brewed a fresh pot of tea." in brew_result
+    assert "You recorded the finished tea order and collected payment." in payout_result
     assert env.state.world_flags["tea_ready"] is False
     assert env.state.world_flags["order_logged"] is False
     assert env.state.world_flags["payment_posted"] is True
@@ -172,58 +169,6 @@ def test_observation_snapshot_omits_empty_action_lists():
     assert "- Storage Shelf (storage_shelf) Actions:" not in move_result
 
 
-def test_render_tool_result_failure_includes_correction_context():
-    scenario_path = Path(__file__).resolve().parents[1] / "scenarios" / "demo_town" / "scenario.yaml"
-    env = TownBenchEnv(load_scenario(scenario_path))
-    env.reset()
-
-    result = env.step({"type": "call_action", "target_id": "tea_station", "args": {"action": "record_order"}})
-    rendered = render_tool_result(
-        {"type": "call_action", "target_id": "tea_station", "args": {"action": "record_order"}},
-        result,
-    )
-
-    assert "Requested target: tea_station" in rendered
-    assert "Requested action: record_order" in rendered
-    assert "Visible objects now: notice_board" in rendered
-
-
-def test_render_initial_observation_text_preserves_public_context():
-    scenario_path = Path(__file__).resolve().parents[1] / "scenarios" / "demo_town" / "scenario.yaml"
-    env = TownBenchEnv(load_scenario(scenario_path))
-    observation = env.reset()
-
-    rendered = render_initial_observation(observation)
-
-    assert "Current time: Day 1, 08:00" in rendered
-    assert "Current location: Plaza (plaza)" in rendered
-    assert "Nearby locations: library, workshop" in rendered
-    assert "Visible objects:" in rendered
-    assert "Notice Board (notice_board): A board with public notices." in rendered
-
-
-def test_run_openai_agents_episode_can_force_json_initial_observation():
-    scenario_path = Path(__file__).resolve().parents[1] / "scenarios" / "demo_town" / "scenario.yaml"
-    env = TownBenchEnv(load_scenario(scenario_path))
-
-    class JsonRunner:
-        @staticmethod
-        def run_sync(agent, _input, max_turns, run_config=None):
-            assert '"current_time": "Day 1, 08:00"' in _input
-            assert '"location_id": "plaza"' in _input
-            return FakeRunResult("JSON mode confirmed.")
-
-    result = run_openai_agents_episode(
-        env=env,
-        config=OpenAIAgentsConfig(max_turns=4, tool_output_format="json"),
-        agent_cls=FakeAgent,
-        runner_cls=JsonRunner,
-        function_tool_decorator=_identity_tool,
-    )
-
-    assert result.final_output == "JSON mode confirmed."
-
-
 def test_build_openai_agent_uses_config_and_tools():
     scenario_path = Path(__file__).resolve().parents[1] / "scenarios" / "demo_town" / "scenario.yaml"
     env = TownBenchEnv(load_scenario(scenario_path))
@@ -239,7 +184,37 @@ def test_build_openai_agent_uses_config_and_tools():
     assert agent.name == "Town Bench Test"
     assert agent.model == "test-model"
     assert "economic state" in agent.instructions
+    assert "## Town Map" in agent.instructions
     assert {tool.__name__ for tool in agent.tools} >= {"move_to", "call_action", "check_status"}
+
+
+def test_build_default_instructions_includes_town_map_and_omits_episode_state():
+    scenario_path = Path(__file__).resolve().parents[1] / "scenarios" / "demo_town" / "scenario.yaml"
+    env = TownBenchEnv(load_scenario(scenario_path))
+
+    instructions = build_default_instructions(env)
+
+    assert "## Town Map" in instructions
+    assert (
+        "- Plaza (`plaza`): The town center with a public notice board. Connected to: `library`, `workshop`"
+        in instructions
+    )
+    assert "Opening briefing:" not in instructions
+    assert "Public rules:" not in instructions
+    assert "Money: 12" not in instructions
+    assert "tea_ready" not in instructions
+
+
+def test_build_default_instructions_uses_same_area_reachability():
+    scenario_path = Path(__file__).resolve().parents[1] / "scenarios" / "multi_area_town" / "scenario.yaml"
+    env = TownBenchEnv(load_scenario(scenario_path))
+
+    instructions = build_default_instructions(env)
+
+    assert (
+        "- Supply Shop (`supply_shop`): A narrow shop selling sleeves, parts and other operating supplies. "
+        "Connected to: `fuel_counter`, `market`, `plaza`" in instructions
+    )
 
 
 def test_run_openai_agents_episode_returns_score_and_trace():
