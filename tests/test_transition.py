@@ -187,12 +187,62 @@ def test_call_action_required_agent_stats_blocks_execution(minimal_world_state):
     }
     env.step({"type": "move_to", "target_id": "market"})
 
-    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "lift_crate"}})
+    result = env.step({"type": "call_action", "target_id": "counter", "action_name": "lift_crate"})
 
     assert result.success is False
     assert result.warnings == ["missing_prerequisites"]
     assert env.state.agent.stats == {"carry_limit": 2}
     assert env.state.objects["counter"].visible_state == {"open": True}
+
+
+def test_call_action_accepts_top_level_action_name_and_args(minimal_world_state):
+    env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
+    env.reset()
+    env.state.agent.stats = {"carry_limit": 2}
+    env.state.objects["counter"].actionable = True
+    env.state.objects["counter"].action_ids = ["rent_cart"]
+    env.state.objects["counter"].action_effects = {
+        "rent_cart": ObjectActionEffect(
+            message="Rented a hand cart.",
+            money_delta=-4,
+            required_money=4,
+            agent_stat_deltas={"carry_limit": 3},
+        )
+    }
+    env.step({"type": "move_to", "target_id": "market"})
+
+    result = env.step(
+        {
+            "type": "call_action",
+            "target_id": "counter",
+            "action_name": "rent_cart",
+            "args": {"note": "unused-for-now"},
+        }
+    )
+
+    assert result.success is True
+    assert result.data["action"] == "rent_cart"
+    assert env.state.agent.stats == {"carry_limit": 5}
+
+
+def test_call_action_rejects_legacy_args_action_format(minimal_world_state):
+    env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
+    env.reset()
+    env.state.objects["counter"].actionable = True
+    env.state.objects["counter"].action_ids = ["rent_cart"]
+    env.state.objects["counter"].action_effects = {
+        "rent_cart": ObjectActionEffect(
+            message="Rented a hand cart.",
+            money_delta=-4,
+            required_money=4,
+        )
+    }
+    env.step({"type": "move_to", "target_id": "market"})
+
+    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "rent_cart"}})
+
+    assert result.success is False
+    assert result.warnings == ["missing_action_name"]
 
 
 def test_call_action_agent_stat_deltas_update_state_and_payload(minimal_world_state):
@@ -211,7 +261,7 @@ def test_call_action_agent_stat_deltas_update_state_and_payload(minimal_world_st
     }
     env.step({"type": "move_to", "target_id": "market"})
 
-    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "rent_cart"}})
+    result = env.step({"type": "call_action", "target_id": "counter", "action_name": "rent_cart"})
 
     assert result.success is True
     assert env.state.agent.stats == {"carry_limit": 5}
@@ -236,8 +286,8 @@ def test_call_action_can_reduce_carry_limit_to_zero_without_dropping_the_stat(mi
     }
     env.step({"type": "move_to", "target_id": "market"})
 
-    disabled = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "disable_bag"}})
-    blocked = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "load_item"}})
+    disabled = env.step({"type": "call_action", "target_id": "counter", "action_name": "disable_bag"})
+    blocked = env.step({"type": "call_action", "target_id": "counter", "action_name": "load_item"})
 
     assert disabled.success is True
     assert env.state.agent.stats == {"carry_limit": 0}
@@ -265,8 +315,8 @@ def test_call_action_clamps_negative_carry_limit_to_zero(minimal_world_state):
     }
     env.step({"type": "move_to", "target_id": "market"})
 
-    disabled = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "over_disable_bag"}})
-    gated = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "check_zero_gate"}})
+    disabled = env.step({"type": "call_action", "target_id": "counter", "action_name": "over_disable_bag"})
+    gated = env.step({"type": "call_action", "target_id": "counter", "action_name": "check_zero_gate"})
 
     assert disabled.success is True
     assert env.state.agent.stats == {"carry_limit": 0}
@@ -305,7 +355,7 @@ def test_call_action_reports_temporarily_unavailable_when_disabled_by_dynamic_ru
     env = TownBenchEnv(state)
     env.reset()
 
-    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "buy_snack"}})
+    result = env.step({"type": "call_action", "target_id": "counter", "action_name": "buy_snack"})
 
     assert result.success is False
     assert result.warnings == ["action_temporarily_unavailable"]
@@ -361,7 +411,7 @@ def test_call_action_can_run_when_higher_priority_rule_reenables_action(minimal_
     env = TownBenchEnv(state)
     env.reset()
 
-    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "buy_snack"}})
+    result = env.step({"type": "call_action", "target_id": "counter", "action_name": "buy_snack"})
 
     assert result.success is True
     assert result.message == "Bought a snack."
@@ -467,7 +517,7 @@ def test_world_rules_and_success_termination_apply_after_action(minimal_world_st
     env.state.termination_config.success_world_flags = ["errand_complete"]
 
     env.step({"type": "move_to", "target_id": "market"})
-    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "buy_apple"}})
+    result = env.step({"type": "call_action", "target_id": "counter", "action_name": "buy_apple"})
 
     assert result.success is True
     assert result.triggered_events == ["apple_notice"]
@@ -495,7 +545,7 @@ def test_call_action_can_apply_money_delta_and_reports_net_step_delta(minimal_wo
         {
             "type": "call_action",
             "target_id": "counter",
-            "args": {"action": "sell_snack"},
+            "action_name": "sell_snack",
         }
     )
 
@@ -519,7 +569,7 @@ def test_inventory_capacity_is_unlimited_when_carry_limit_is_absent(minimal_worl
     }
     env.step({"type": "move_to", "target_id": "market"})
 
-    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "buy_bulk"}})
+    result = env.step({"type": "call_action", "target_id": "counter", "action_name": "buy_bulk"})
 
     assert result.success is True
     assert env.state.agent.inventory == {"apple": 6}
@@ -540,7 +590,7 @@ def test_object_action_inventory_delta_respects_carry_limit(minimal_world_state)
     }
     env.step({"type": "move_to", "target_id": "market"})
 
-    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "buy_bulk"}})
+    result = env.step({"type": "call_action", "target_id": "counter", "action_name": "buy_bulk"})
 
     assert result.success is False
     assert result.warnings == ["inventory_capacity_exceeded"]
@@ -563,7 +613,7 @@ def test_object_action_can_increase_carry_limit_and_add_inventory_in_same_step(m
     }
     env.step({"type": "move_to", "target_id": "market"})
 
-    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "upgrade_and_load"}})
+    result = env.step({"type": "call_action", "target_id": "counter", "action_name": "upgrade_and_load"})
 
     assert result.success is True
     assert env.state.agent.stats == {"carry_limit": 2}
@@ -586,7 +636,7 @@ def test_capacity_decrease_is_validated_against_projected_carry_limit(minimal_wo
     }
     env.step({"type": "move_to", "target_id": "market"})
 
-    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "shrink_bag"}})
+    result = env.step({"type": "call_action", "target_id": "counter", "action_name": "shrink_bag"})
 
     assert result.success is False
     assert result.warnings == ["inventory_capacity_exceeded"]
@@ -640,7 +690,7 @@ def test_call_action_inventory_validation_uses_net_step_delta(minimal_world_stat
     }
     env.step({"type": "move_to", "target_id": "market"})
 
-    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "swap_item"}})
+    result = env.step({"type": "call_action", "target_id": "counter", "action_name": "swap_item"})
 
     assert result.success is True
     assert result.inventory_delta == {"banana": 1, "apple": -1}
@@ -662,7 +712,7 @@ def test_call_action_net_inventory_commit_uses_merged_delta_for_same_item(minima
     }
     env.step({"type": "move_to", "target_id": "market"})
 
-    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "consume_and_rebate"}})
+    result = env.step({"type": "call_action", "target_id": "counter", "action_name": "consume_and_rebate"})
 
     assert result.success is True
     assert result.inventory_delta == {"apple": -1}
@@ -684,7 +734,7 @@ def test_call_action_money_validation_uses_net_step_delta(minimal_world_state):
     }
     env.step({"type": "move_to", "target_id": "market"})
 
-    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "rebated_fee"}})
+    result = env.step({"type": "call_action", "target_id": "counter", "action_name": "rebated_fee"})
 
     assert result.success is True
     assert result.money_delta == 0
@@ -708,7 +758,7 @@ def test_combined_object_and_action_cost_inventory_delta_rolls_back_state(minima
     }
     env.step({"type": "move_to", "target_id": "market"})
 
-    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "buy_box"}})
+    result = env.step({"type": "call_action", "target_id": "counter", "action_name": "buy_box"})
 
     assert result.success is False
     assert result.warnings == ["inventory_capacity_exceeded"]
@@ -736,7 +786,7 @@ def test_step_payload_visible_state_is_detached_from_runtime_state(minimal_world
         {
             "type": "call_action",
             "target_id": "counter",
-            "args": {"action": "sell_snack"},
+            "action_name": "sell_snack",
         }
     )
     payload_state = result.data["visible_state"]["sale"]
@@ -799,7 +849,7 @@ def test_call_action_can_apply_energy_inventory_and_location_changes(minimal_wor
     }
     env.step({"type": "move_to", "target_id": "market"})
 
-    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "buy_ticket"}})
+    result = env.step({"type": "call_action", "target_id": "counter", "action_name": "buy_ticket"})
 
     assert result.success is True
     assert result.money_delta == -6
@@ -830,7 +880,7 @@ def test_call_action_updates_observation_when_visible_state_changes_without_reso
     }
     env.step({"type": "move_to", "target_id": "market"})
 
-    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "mark_sold"}})
+    result = env.step({"type": "call_action", "target_id": "counter", "action_name": "mark_sold"})
 
     assert result.success is True
     assert result.energy_delta == 0
@@ -864,7 +914,7 @@ def test_call_action_teleport_ignores_area_reachability(minimal_world_state):
     }
     env.step({"type": "move_to", "target_id": "market"})
 
-    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "enter_vault"}})
+    result = env.step({"type": "call_action", "target_id": "counter", "action_name": "enter_vault"})
 
     assert result.success is True
     assert env.state.agent.location_id == "vault"
@@ -886,7 +936,7 @@ def test_call_action_rejects_when_required_inventory_is_missing(minimal_world_st
     }
     env.step({"type": "move_to", "target_id": "market"})
 
-    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "repair_device"}})
+    result = env.step({"type": "call_action", "target_id": "counter", "action_name": "repair_device"})
 
     assert result.success is False
     assert result.warnings == ["missing_inventory"]
@@ -909,7 +959,7 @@ def test_call_action_rejects_when_money_would_drop_below_zero(minimal_world_stat
     }
     env.step({"type": "move_to", "target_id": "market"})
 
-    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "buy_machine"}})
+    result = env.step({"type": "call_action", "target_id": "counter", "action_name": "buy_machine"})
 
     assert result.success is False
     assert result.warnings == ["insufficient_money"]

@@ -10,34 +10,34 @@ def _load_phase3_env() -> TownBenchEnv:
 
 
 def _run_tea_loop(env: TownBenchEnv) -> None:
-    env.step({"type": "call_action", "target_id": "tea_wholesaler", "args": {"action": "buy_tea_bundle"}})
+    env.step({"type": "call_action", "target_id": "tea_wholesaler", "action_name": "buy_tea_bundle"})
     env.step({"type": "move_to", "target_id": "fuel_counter"})
-    env.step({"type": "call_action", "target_id": "fuel_rack", "args": {"action": "buy_fuel_canister"}})
+    env.step({"type": "call_action", "target_id": "fuel_rack", "action_name": "buy_fuel_canister"})
     env.step({"type": "move_to", "target_id": "supply_shop"})
-    env.step({"type": "call_action", "target_id": "supply_counter", "args": {"action": "buy_packaging_sleeve"}})
+    env.step({"type": "call_action", "target_id": "supply_counter", "action_name": "buy_packaging_sleeve"})
     env.step({"type": "move_to", "target_id": "workshop"})
-    env.step({"type": "call_action", "target_id": "tea_station", "args": {"action": "brew_tea"}})
-    env.step({"type": "call_action", "target_id": "packaging_table", "args": {"action": "pack_tea"}})
+    env.step({"type": "call_action", "target_id": "tea_station", "action_name": "brew_tea"})
+    env.step({"type": "call_action", "target_id": "packaging_table", "action_name": "pack_tea"})
     env.step({"type": "move_to", "target_id": "market"})
-    env.step({"type": "call_action", "target_id": "goods_buyer", "args": {"action": "sell_packed_tea"}})
+    env.step({"type": "call_action", "target_id": "goods_buyer", "action_name": "sell_packed_tea"})
 
 
 def _run_meal_loop(env: TownBenchEnv) -> None:
-    env.step({"type": "call_action", "target_id": "ingredient_seller", "args": {"action": "buy_meal_ingredients"}})
+    env.step({"type": "call_action", "target_id": "ingredient_seller", "action_name": "buy_meal_ingredients"})
     env.step({"type": "move_to", "target_id": "workshop"})
-    env.step({"type": "call_action", "target_id": "meal_prep_table", "args": {"action": "assemble_meal_box"}})
+    env.step({"type": "call_action", "target_id": "meal_prep_table", "action_name": "assemble_meal_box"})
     env.step({"type": "move_to", "target_id": "canteen"})
-    env.step({"type": "call_action", "target_id": "meal_counter", "args": {"action": "sell_meal_box"}})
+    env.step({"type": "call_action", "target_id": "meal_counter", "action_name": "sell_meal_box"})
 
 
 def _run_repair_loop_from_canteen(env: TownBenchEnv) -> None:
     env.step({"type": "move_to", "target_id": "market"})
     env.step({"type": "move_to", "target_id": "supply_shop"})
-    env.step({"type": "call_action", "target_id": "supply_counter", "args": {"action": "buy_repair_part"}})
+    env.step({"type": "call_action", "target_id": "supply_counter", "action_name": "buy_repair_part"})
     env.step({"type": "move_to", "target_id": "workshop"})
-    env.step({"type": "call_action", "target_id": "repair_bench", "args": {"action": "service_kettle"}})
+    env.step({"type": "call_action", "target_id": "repair_bench", "action_name": "service_kettle"})
     env.step({"type": "move_to", "target_id": "service_depot"})
-    env.step({"type": "call_action", "target_id": "pickup_clerk", "args": {"action": "collect_service_fee"}})
+    env.step({"type": "call_action", "target_id": "pickup_clerk", "action_name": "collect_service_fee"})
 
 
 def test_phase3_scenario_loads_dynamic_economic_content():
@@ -59,7 +59,7 @@ def test_phase3_supply_counter_is_visible_but_closed_before_opening_time():
 
     observation = env.get_observation()
     closed_purchase = env.step(
-        {"type": "call_action", "target_id": "supply_counter", "args": {"action": "buy_packaging_sleeve"}}
+        {"type": "call_action", "target_id": "supply_counter", "action_name": "buy_packaging_sleeve"}
     )
 
     assert observation.visible_objects[0].object_id == "supply_counter"

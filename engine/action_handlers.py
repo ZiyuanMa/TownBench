@@ -213,15 +213,15 @@ def _handle_call_action(state: WorldState, action: Action) -> ActionExecution:
     if not action.target_id:
         return _failure(
             "missing_target",
-            "call_action requires a target_id.",
+            "call_action requires an object_id.",
             result_data={"visible_object_ids": _visible_object_ids(state)},
         )
 
-    action_name = str(action.args.get("action", "")).strip()
+    action_name = _resolve_object_action_name(action)
     if not action_name:
         return _failure(
             "missing_action_name",
-            "call_action requires `args.action`.",
+            "call_action requires `action_name`.",
             result_data={
                 "target_id": action.target_id,
                 "visible_object_ids": _visible_object_ids(state),
@@ -398,6 +398,10 @@ def _get_accessible_object(state: WorldState, target_id: str) -> WorldObject | A
             },
         )
     return world_object
+
+
+def _resolve_object_action_name(action: Action) -> str:
+    return str(action.action_name or "").strip()
 
 
 def _serialize_object(world_object: WorldObject) -> dict[str, Any]:

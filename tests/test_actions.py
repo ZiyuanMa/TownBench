@@ -1,3 +1,5 @@
+from typing import Any
+
 from engine.actions import ACTION_SPECS, TOOL_ACTION_SPECS, apply_action_costs, get_action_cost
 from engine.state import ActionCost
 
@@ -14,6 +16,14 @@ def test_tool_specs_are_backed_by_registered_actions():
 
 def test_move_to_tool_description_mentions_area_reachability():
     assert "same area" in ACTION_SPECS["move_to"].tool.description
+
+
+def test_call_action_tool_uses_object_id_and_optional_action_args():
+    parameters = ACTION_SPECS["call_action"].tool.parameters
+
+    assert [parameter.name for parameter in parameters] == ["object_id", "action_name", "action_args"]
+    assert parameters[2].default is None
+    assert parameters[2].annotation == dict[str, Any] | None
 
 
 def test_get_action_cost_prefers_runtime_override(minimal_world_state):

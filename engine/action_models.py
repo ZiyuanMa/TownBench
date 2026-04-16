@@ -20,6 +20,7 @@ ActionType = Literal[
 class Action(BaseModel):
     type: ActionType
     target_id: str | None = None
+    action_name: str | None = None
     args: dict[str, Any] = Field(default_factory=dict)
     request_id: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)

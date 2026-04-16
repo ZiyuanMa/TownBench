@@ -1,4 +1,5 @@
 import asyncio
+from inspect import signature
 from pathlib import Path
 
 from agents.exceptions import MaxTurnsExceeded
@@ -140,6 +141,19 @@ def test_build_townbench_tools_executes_env_steps():
     assert env.state.world_flags["order_logged"] is False
     assert env.state.world_flags["payment_posted"] is True
     assert env.state.agent.money == 21
+
+
+def test_call_action_tool_exposes_object_id_and_optional_action_args():
+    scenario_path = Path(__file__).resolve().parents[1] / "scenarios" / "demo_town" / "scenario.yaml"
+    env = TownBenchEnv(load_scenario(scenario_path))
+    env.reset()
+    tools = {tool.__name__: tool for tool in build_townbench_tools(env, function_tool_decorator=_identity_tool)}
+
+    call_action_signature = signature(tools["call_action"])
+
+    assert list(call_action_signature.parameters) == ["object_id", "action_name", "action_args"]
+    assert call_action_signature.parameters["action_args"].default is None
+    assert call_action_signature.return_annotation is str
 
 
 def test_build_townbench_tools_returns_text_by_default():

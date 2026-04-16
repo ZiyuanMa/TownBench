@@ -322,7 +322,7 @@ def _build_failure_next_steps(action: Action, result: StepResult) -> list[str]:
 def _render_failure_context(action: Action, data: dict[str, Any]) -> list[str]:
     details: list[str] = []
     target_id = data.get("target_id") or action.target_id
-    requested_action = data.get("requested_action") or action.args.get("action")
+    requested_action = data.get("requested_action") or action.action_name
 
     if target_id:
         details.append(f"Requested target: {target_id}")

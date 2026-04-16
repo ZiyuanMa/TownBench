@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from inspect import Parameter
 from typing import Any, Callable
 
 from engine.action_handlers import (
@@ -29,6 +30,7 @@ ActionToolBuilder = Callable[..., Action]
 class ActionToolParameter:
     name: str
     annotation: Any = str
+    default: Any = Parameter.empty
 
 
 @dataclass(frozen=True)
@@ -108,9 +110,16 @@ _ACTION_SPEC_LIST: tuple[ActionSpec, ...] = (
         tool=ActionToolSpec(
             name="call_action",
             description="Call an exposed action on an object in the current location.",
-            parameters=(ActionToolParameter("target_id"), ActionToolParameter("action_name")),
-            build_action=lambda target_id, action_name: Action(
-                type="call_action", target_id=target_id, args={"action": action_name}
+            parameters=(
+                ActionToolParameter("object_id"),
+                ActionToolParameter("action_name"),
+                ActionToolParameter("action_args", annotation=dict[str, Any] | None, default=None),
+            ),
+            build_action=lambda object_id, action_name, action_args=None: Action(
+                type="call_action",
+                target_id=object_id,
+                action_name=action_name,
+                args=dict(action_args or {}),
             ),
         ),
         handler=_handle_call_action,

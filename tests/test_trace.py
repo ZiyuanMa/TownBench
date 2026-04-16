@@ -10,7 +10,7 @@ def test_trace_records_deltas_and_triggered_events():
     env = TownBenchEnv(load_scenario(scenario_path))
     env.reset()
     env.step({"type": "move_to", "target_id": "workshop"})
-    result = env.step({"type": "call_action", "target_id": "tea_station", "args": {"action": "brew_tea"}})
+    result = env.step({"type": "call_action", "target_id": "tea_station", "action_name": "brew_tea"})
 
     trace = env.get_trace()
     assert result.triggered_events == ["tea_ready_notice"]
@@ -46,7 +46,7 @@ def test_trace_records_money_delta_from_object_actions(minimal_world_state):
         )
     }
     env.step({"type": "move_to", "target_id": "market"})
-    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "sell_snack"}})
+    result = env.step({"type": "call_action", "target_id": "counter", "action_name": "sell_snack"})
 
     trace = env.get_trace()
     assert result.money_delta == 5
@@ -68,7 +68,7 @@ def test_trace_records_object_inventory_and_energy_deltas(minimal_world_state):
     }
     env.step({"type": "move_to", "target_id": "market"})
 
-    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "buy_supply"}})
+    result = env.step({"type": "call_action", "target_id": "counter", "action_name": "buy_supply"})
 
     trace = env.get_trace()
     assert result.inventory_delta == {"supply_crate": 1}

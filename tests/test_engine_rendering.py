@@ -42,9 +42,9 @@ def test_render_tool_result_hides_internal_world_flags_for_missing_prerequisites
     env.reset()
     env.step({"type": "move_to", "target_id": "workshop"})
 
-    result = env.step({"type": "call_action", "target_id": "completion_log", "args": {"action": "record_order"}})
+    result = env.step({"type": "call_action", "target_id": "completion_log", "action_name": "record_order"})
     rendered = render_tool_result(
-        {"type": "call_action", "target_id": "completion_log", "args": {"action": "record_order"}},
+        {"type": "call_action", "target_id": "completion_log", "action_name": "record_order"},
         result,
     )
 
@@ -60,9 +60,9 @@ def test_render_tool_result_surfaces_exposed_actions_for_action_not_exposed():
     env.reset()
     env.step({"type": "move_to", "target_id": "workshop"})
 
-    result = env.step({"type": "call_action", "target_id": "tea_station", "args": {"action": "record_order"}})
+    result = env.step({"type": "call_action", "target_id": "tea_station", "action_name": "record_order"})
     rendered = render_tool_result(
-        {"type": "call_action", "target_id": "tea_station", "args": {"action": "record_order"}},
+        {"type": "call_action", "target_id": "tea_station", "action_name": "record_order"},
         result,
     )
 
@@ -86,9 +86,9 @@ def test_render_tool_result_surfaces_missing_inventory_context(minimal_world_sta
     }
     env.step({"type": "move_to", "target_id": "market"})
 
-    result = env.step({"type": "call_action", "target_id": "counter", "args": {"action": "repair_device"}})
+    result = env.step({"type": "call_action", "target_id": "counter", "action_name": "repair_device"})
     rendered = render_tool_result(
-        {"type": "call_action", "target_id": "counter", "args": {"action": "repair_device"}},
+        {"type": "call_action", "target_id": "counter", "action_name": "repair_device"},
         result,
     )
 
@@ -104,10 +104,10 @@ def test_render_tool_result_surfaces_temporary_unavailability():
     env.step({"type": "move_to", "target_id": "supply_shop"})
 
     result = env.step(
-        {"type": "call_action", "target_id": "supply_counter", "args": {"action": "buy_packaging_sleeve"}}
+        {"type": "call_action", "target_id": "supply_counter", "action_name": "buy_packaging_sleeve"}
     )
     rendered = render_tool_result(
-        {"type": "call_action", "target_id": "supply_counter", "args": {"action": "buy_packaging_sleeve"}},
+        {"type": "call_action", "target_id": "supply_counter", "action_name": "buy_packaging_sleeve"},
         result,
     )
 

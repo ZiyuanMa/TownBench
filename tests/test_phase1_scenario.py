@@ -41,11 +41,11 @@ def test_phase1_delivery_loop_pays_and_reopens_the_public_job():
     env.reset()
 
     accept_result = env.step(
-        {"type": "call_action", "target_id": "job_board", "args": {"action": "accept_delivery_run"}}
+        {"type": "call_action", "target_id": "job_board", "action_name": "accept_delivery_run"}
     )
     env.step({"type": "move_to", "target_id": "station"})
     deliver_result = env.step(
-        {"type": "call_action", "target_id": "parcel_locker", "args": {"action": "deliver_parcel"}}
+        {"type": "call_action", "target_id": "parcel_locker", "action_name": "deliver_parcel"}
     )
 
     assert accept_result.success is True
@@ -63,19 +63,19 @@ def test_phase1_tea_loop_requires_the_tool_investment_and_then_turns_profitable(
     env.reset()
 
     env.step({"type": "move_to", "target_id": "market"})
-    env.step({"type": "call_action", "target_id": "tea_vendor", "args": {"action": "buy_tea_bundle"}})
+    env.step({"type": "call_action", "target_id": "tea_vendor", "action_name": "buy_tea_bundle"})
     env.step({"type": "move_to", "target_id": "workshop"})
-    env.step({"type": "call_action", "target_id": "tea_station", "args": {"action": "brew_tea"}})
-    early_pack = env.step({"type": "call_action", "target_id": "packaging_table", "args": {"action": "pack_tea"}})
+    env.step({"type": "call_action", "target_id": "tea_station", "action_name": "brew_tea"})
+    early_pack = env.step({"type": "call_action", "target_id": "packaging_table", "action_name": "pack_tea"})
 
     env.step({"type": "move_to", "target_id": "market"})
     env.step({"type": "move_to", "target_id": "supply_shop"})
-    buy_kit = env.step({"type": "call_action", "target_id": "tool_rack", "args": {"action": "buy_packaging_kit"}})
+    buy_kit = env.step({"type": "call_action", "target_id": "tool_rack", "action_name": "buy_packaging_kit"})
     env.step({"type": "move_to", "target_id": "market"})
     env.step({"type": "move_to", "target_id": "workshop"})
-    packed = env.step({"type": "call_action", "target_id": "packaging_table", "args": {"action": "pack_tea"}})
+    packed = env.step({"type": "call_action", "target_id": "packaging_table", "action_name": "pack_tea"})
     env.step({"type": "move_to", "target_id": "market"})
-    sold = env.step({"type": "call_action", "target_id": "general_buyer", "args": {"action": "sell_packed_tea"}})
+    sold = env.step({"type": "call_action", "target_id": "general_buyer", "action_name": "sell_packed_tea"})
 
     assert early_pack.success is False
     assert early_pack.warnings == ["missing_inventory"]
@@ -98,11 +98,11 @@ def test_phase1_trade_notes_support_the_repair_contract_loop():
     env.step({"type": "move_to", "target_id": "plaza"})
     env.step({"type": "move_to", "target_id": "market"})
     env.step({"type": "move_to", "target_id": "supply_shop"})
-    env.step({"type": "call_action", "target_id": "tool_rack", "args": {"action": "buy_repair_kit"}})
+    env.step({"type": "call_action", "target_id": "tool_rack", "action_name": "buy_repair_kit"})
     env.step({"type": "move_to", "target_id": "market"})
     env.step({"type": "move_to", "target_id": "workshop"})
     repair_result = env.step(
-        {"type": "call_action", "target_id": "repair_corner", "args": {"action": "service_commuter_kettle"}}
+        {"type": "call_action", "target_id": "repair_corner", "action_name": "service_commuter_kettle"}
     )
 
     assert notes_result.success is True
@@ -118,9 +118,9 @@ def test_phase1_spending_sinks_can_convert_cash_into_speed_and_recovery():
     env.reset()
 
     env.step({"type": "move_to", "target_id": "station"})
-    cart_result = env.step({"type": "call_action", "target_id": "express_cart", "args": {"action": "ride_to_market"}})
+    cart_result = env.step({"type": "call_action", "target_id": "express_cart", "action_name": "ride_to_market"})
     env.step({"type": "move_to", "target_id": "canteen"})
-    meal_result = env.step({"type": "call_action", "target_id": "meal_counter", "args": {"action": "buy_hot_meal"}})
+    meal_result = env.step({"type": "call_action", "target_id": "meal_counter", "action_name": "buy_hot_meal"})
 
     assert cart_result.success is True
     assert cart_result.data["location_id"] == "market"

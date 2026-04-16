@@ -78,7 +78,7 @@ def test_load_skill_and_call_action_change_world_state():
         {
             "type": "call_action",
             "target_id": "tea_station",
-            "args": {"action": "brew_tea"},
+            "action_name": "brew_tea",
         }
     )
 
@@ -104,21 +104,21 @@ def test_completion_log_requires_brewing_and_pays_agent():
         {
             "type": "call_action",
             "target_id": "completion_log",
-            "args": {"action": "record_order"},
+            "action_name": "record_order",
         }
     )
     brew_result = env.step(
         {
             "type": "call_action",
             "target_id": "tea_station",
-            "args": {"action": "brew_tea"},
+            "action_name": "brew_tea",
         }
     )
     paid_result = env.step(
         {
             "type": "call_action",
             "target_id": "completion_log",
-            "args": {"action": "record_order"},
+            "action_name": "record_order",
         }
     )
 
@@ -146,13 +146,13 @@ def test_paid_order_reopens_the_loop_for_another_payout():
     env.reset()
     env.step({"type": "move_to", "target_id": "workshop"})
 
-    first_brew = env.step({"type": "call_action", "target_id": "tea_station", "args": {"action": "brew_tea"}})
+    first_brew = env.step({"type": "call_action", "target_id": "tea_station", "action_name": "brew_tea"})
     first_pay = env.step(
-        {"type": "call_action", "target_id": "completion_log", "args": {"action": "record_order"}}
+        {"type": "call_action", "target_id": "completion_log", "action_name": "record_order"}
     )
-    second_brew = env.step({"type": "call_action", "target_id": "tea_station", "args": {"action": "brew_tea"}})
+    second_brew = env.step({"type": "call_action", "target_id": "tea_station", "action_name": "brew_tea"})
     second_pay = env.step(
-        {"type": "call_action", "target_id": "completion_log", "args": {"action": "record_order"}}
+        {"type": "call_action", "target_id": "completion_log", "action_name": "record_order"}
     )
 
     assert first_brew.triggered_events == ["tea_ready_notice"]
@@ -175,7 +175,7 @@ def test_call_action_rejects_unexposed_actions():
         {
             "type": "call_action",
             "target_id": "tea_station",
-            "args": {"action": "brew_tea"},
+            "action_name": "brew_tea",
         }
     )
 

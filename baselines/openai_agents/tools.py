@@ -38,7 +38,12 @@ def _build_tool(
     tool.__doc__ = tool_spec.description
     tool.__signature__ = Signature(
         parameters=[
-            Parameter(parameter.name, kind=Parameter.POSITIONAL_OR_KEYWORD, annotation=parameter.annotation)
+            Parameter(
+                parameter.name,
+                kind=Parameter.POSITIONAL_OR_KEYWORD,
+                annotation=parameter.annotation,
+                default=parameter.default,
+            )
             for parameter in tool_spec.parameters
         ],
         return_annotation=str,
