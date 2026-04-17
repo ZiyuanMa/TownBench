@@ -1,6 +1,8 @@
 from engine.dynamics import build_effective_object_view, matches_time_window
 from engine.rules import format_time_label, parse_time_label
 from engine.state import (
+    CallableActionMatcher,
+    CallableActionOverrideRule,
     DynamicCondition,
     DynamicRule,
     DynamicRuleApplication,
@@ -45,7 +47,9 @@ def test_effective_object_view_applies_overrides_without_mutating_base_state(min
                 object_overrides={
                     "counter": ObjectDynamicOverride(
                         visible_state={"open": False},
-                        disabled_actions=["buy_snack"],
+                        disabled_callable_actions=[
+                            CallableActionMatcher(action_name="buy_snack"),
+                        ],
                     )
                 }
             ),
@@ -58,12 +62,15 @@ def test_effective_object_view_applies_overrides_without_mutating_base_state(min
                 object_overrides={
                     "counter": ObjectDynamicOverride(
                         visible_state={"snack_price": 1},
-                        action_overrides={
-                            "buy_snack": {
-                                "required_money": 1,
-                                "money_delta": -1,
-                            }
-                        },
+                        callable_action_overrides=[
+                            CallableActionOverrideRule(
+                                match=CallableActionMatcher(action_name="buy_snack"),
+                                override={
+                                    "required_money": 1,
+                                    "money_delta": -1,
+                                },
+                            )
+                        ],
                     )
                 }
             ),
@@ -73,14 +80,14 @@ def test_effective_object_view_applies_overrides_without_mutating_base_state(min
     early_view = build_effective_object_view(state, "counter", at_time=8 * 60)
     assert early_view is not None
     assert early_view.object.visible_state == {"open": False, "snack_price": 3}
-    assert early_view.object.action_ids == ["buy_drink"]
+    assert list(early_view.object.callable_actions) == ["buy_drink"]
 
     discount_view = build_effective_object_view(state, "counter", at_time=(9 * 60) + 15)
     assert discount_view is not None
     assert discount_view.object.visible_state == {"open": True, "snack_price": 1}
-    assert discount_view.object.action_ids == ["buy_snack", "buy_drink"]
-    assert discount_view.object.action_effects["buy_snack"].required_money == 1
-    assert discount_view.object.action_effects["buy_snack"].money_delta == -1
+    assert list(discount_view.object.callable_actions) == ["buy_snack", "buy_drink"]
+    assert discount_view.object.callable_actions["buy_snack"].routes[0].effect.required_money == 1
+    assert discount_view.object.callable_actions["buy_snack"].routes[0].effect.money_delta == -1
 
     assert state.objects["counter"].visible_state == {"open": True, "snack_price": 3}
     assert state.objects["counter"].action_ids == ["buy_snack", "buy_drink"]
@@ -107,7 +114,10 @@ def test_higher_priority_rule_can_reenable_action(minimal_world_state):
                 object_overrides={
                     "counter": ObjectDynamicOverride(
                         visible_state={"open": False},
-                        disabled_actions=["buy_snack", "buy_drink"],
+                        disabled_callable_actions=[
+                            CallableActionMatcher(action_name="buy_snack"),
+                            CallableActionMatcher(action_name="buy_drink"),
+                        ],
                     )
                 }
             ),
@@ -120,7 +130,9 @@ def test_higher_priority_rule_can_reenable_action(minimal_world_state):
                 object_overrides={
                     "counter": ObjectDynamicOverride(
                         visible_state={"open": True, "special_window": True},
-                        enabled_actions=["buy_snack"],
+                        enabled_callable_actions=[
+                            CallableActionMatcher(action_name="buy_snack"),
+                        ],
                     )
                 }
             ),
@@ -130,11 +142,60 @@ def test_higher_priority_rule_can_reenable_action(minimal_world_state):
     closed_view = build_effective_object_view(state, "counter", at_time=(8 * 60) + 30)
     assert closed_view is not None
     assert closed_view.object.visible_state == {"open": False}
-    assert closed_view.object.action_ids == []
-    assert closed_view.disabled_actions == ("buy_drink", "buy_snack")
+    assert closed_view.object.callable_actions == {}
+    assert {matcher.action_name for matcher in closed_view.disabled_routes} == {"buy_drink", "buy_snack"}
 
     reopened_view = build_effective_object_view(state, "counter", at_time=(9 * 60) + 15)
     assert reopened_view is not None
     assert reopened_view.object.visible_state == {"open": True, "special_window": True}
-    assert reopened_view.object.action_ids == ["buy_snack"]
-    assert reopened_view.disabled_actions == ("buy_drink",)
+    assert list(reopened_view.object.callable_actions) == ["buy_snack"]
+    assert tuple(matcher.action_name for matcher in reopened_view.disabled_routes) == ("buy_drink",)
+
+
+def test_higher_priority_disable_keeps_action_closed_even_if_lower_priority_rule_enabled_it(minimal_world_state):
+    state = minimal_world_state.model_copy(deep=True)
+    state.agent.location_id = "market"
+    state.objects["counter"].actionable = True
+    state.objects["counter"].action_ids = ["buy_snack"]
+    state.objects["counter"].visible_state = {"open": True}
+    state.objects["counter"].action_effects = {
+        "buy_snack": ObjectActionEffect(message="Bought a snack."),
+    }
+    state.dynamic_rules = [
+        DynamicRule(
+            rule_id="early_promo",
+            priority=0,
+            when=DynamicCondition(time_window=TimeWindow(start="08:00", end="12:00")),
+            apply=DynamicRuleApplication(
+                object_overrides={
+                    "counter": ObjectDynamicOverride(
+                        enabled_callable_actions=[
+                            CallableActionMatcher(action_name="buy_snack"),
+                        ]
+                    )
+                }
+            ),
+        ),
+        DynamicRule(
+            rule_id="late_closure",
+            priority=10,
+            when=DynamicCondition(time_window=TimeWindow(start="08:00", end="12:00")),
+            apply=DynamicRuleApplication(
+                object_overrides={
+                    "counter": ObjectDynamicOverride(
+                        visible_state={"open": False},
+                        disabled_callable_actions=[
+                            CallableActionMatcher(action_name="buy_snack"),
+                        ],
+                    )
+                }
+            ),
+        ),
+    ]
+
+    effective_view = build_effective_object_view(state, "counter", at_time=(9 * 60))
+
+    assert effective_view is not None
+    assert effective_view.object.visible_state == {"open": False}
+    assert effective_view.object.callable_actions == {}
+    assert tuple(matcher.action_name for matcher in effective_view.disabled_routes) == ("buy_snack",)

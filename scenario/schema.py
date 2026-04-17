@@ -10,6 +10,7 @@ from engine.state import (
     ActionCost,
     AgentState,
     Area,
+    CallableActionDefinition,
     DynamicRule,
     Location,
     ObjectActionEffect,
@@ -107,6 +108,7 @@ class ScenarioObjectSource(BaseModel):
     resource_content: str | None = None
     resource_file: str | None = None
     action_effects: dict[str, ObjectActionEffect] = Field(default_factory=dict)
+    callable_actions: dict[str, CallableActionDefinition] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def validate_resource_source(self) -> "ScenarioObjectSource":
@@ -128,9 +130,13 @@ class ScenarioObjectSource(BaseModel):
             tags=list(self.tags),
             inspectable=self.inspectable,
             readable=self.readable,
-            actionable=self.actionable or bool(self.action_effects),
+            actionable=self.actionable or bool(self.action_effects) or bool(self.callable_actions),
             resource_content=resource_content,
             action_effects={key: effect.model_copy(deep=True) for key, effect in self.action_effects.items()},
+            callable_actions={
+                key: action.model_copy(deep=True)
+                for key, action in self.callable_actions.items()
+            },
         )
 
 

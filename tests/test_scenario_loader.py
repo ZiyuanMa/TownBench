@@ -307,14 +307,16 @@ dynamic_rules:
     apply:
       object_overrides:
         stall:
-          action_overrides:
-            sell_item:
-              money_delta: 2
+          callable_action_overrides:
+            - match:
+                action_name: sell_item
+              override:
+                money_delta: 2
 """.strip(),
         encoding="utf-8",
     )
 
-    with pytest.raises(ValueError, match="overrides unknown action"):
+    with pytest.raises(ValueError, match="overrides unknown callable action"):
         load_scenario(scenario_file)
 
 
@@ -351,12 +353,13 @@ dynamic_rules:
     apply:
       object_overrides:
         stall:
-          enabled_actions: [sell_item]
+          enabled_callable_actions:
+            - action_name: sell_item
 """.strip(),
         encoding="utf-8",
     )
 
-    with pytest.raises(ValueError, match="enables unknown action"):
+    with pytest.raises(ValueError, match="enables unknown callable action"):
         load_scenario(scenario_file)
 
 
@@ -890,6 +893,85 @@ objects:
     )
 
     with pytest.raises(ValueError, match="references unknown location"):
+        load_scenario(scenario_file)
+
+
+def test_loader_rejects_mixed_legacy_and_callable_action_authoring(tmp_path):
+    scenario_file = tmp_path / "bad_scenario.yaml"
+    scenario_file.write_text(
+        """
+scenario_id: broken
+initial_agent_state:
+  location_id: plaza
+locations:
+  - location_id: plaza
+    name: Plaza
+    description: A plaza.
+objects:
+  - object_id: counter
+    name: Counter
+    object_type: stall
+    location_id: plaza
+    summary: A small counter.
+    actionable: true
+    action_ids: [buy_snack]
+    callable_actions:
+      buy:
+        arguments:
+          item_id:
+            options: [snack]
+        routes:
+          - match:
+              item_id: snack
+            effect:
+              message: Buy snack.
+    action_effects:
+      buy_snack:
+        message: Buy snack.
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="either legacy action_ids/action_effects or callable_actions"):
+        load_scenario(scenario_file)
+
+
+def test_loader_rejects_callable_action_with_multiple_arguments(tmp_path):
+    scenario_file = tmp_path / "bad_scenario.yaml"
+    scenario_file.write_text(
+        """
+scenario_id: broken
+initial_agent_state:
+  location_id: plaza
+locations:
+  - location_id: plaza
+    name: Plaza
+    description: A plaza.
+objects:
+  - object_id: machine
+    name: Machine
+    object_type: kiosk
+    location_id: plaza
+    summary: A configurable machine.
+    actionable: true
+    callable_actions:
+      configure:
+        arguments:
+          color:
+            options: [red, blue]
+          size:
+            options: [small, large]
+        routes:
+          - match:
+              color: red
+              size: small
+            effect:
+              message: Configured.
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="may declare at most one argument"):
         load_scenario(scenario_file)
 
 

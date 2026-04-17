@@ -274,22 +274,31 @@ objects:
       workshop_route_fee: 2
       last_route: none
     actionable: true
-    action_ids: ["ride_to_market", "ride_to_workshop"]
-    action_effects:
-      ride_to_market:
-        message: "You paid for the cart and rode directly to the market."
-        required_money: 1
-        money_delta: -1
-        move_to_location_id: market
-        set_visible_state:
-          last_route: station_to_market
-      ride_to_workshop:
-        message: "You paid for the cart and rode directly to the workshop."
-        required_money: 2
-        money_delta: -2
-        move_to_location_id: workshop
-        set_visible_state:
-          last_route: station_to_workshop
+    callable_actions:
+      ride:
+        description: "Pay for a cart ride to one of the posted destinations."
+        arguments:
+          destination:
+            options: ["market", "workshop"]
+        routes:
+          - match:
+              destination: market
+            effect:
+              message: "You paid for the cart and rode directly to the market."
+              required_money: 1
+              money_delta: -1
+              move_to_location_id: market
+              set_visible_state:
+                last_route: station_to_market
+          - match:
+              destination: workshop
+            effect:
+              message: "You paid for the cart and rode directly to the workshop."
+              required_money: 2
+              money_delta: -2
+              move_to_location_id: workshop
+              set_visible_state:
+                last_route: station_to_workshop
 
   - object_id: parcel_locker
     name: Parcel Locker
@@ -334,24 +343,33 @@ objects:
       repair_kit_price: 5
       packaging_kit_status: available
     actionable: true
-    action_ids: ["buy_packaging_kit", "buy_repair_kit"]
-    action_effects:
-      buy_packaging_kit:
-        message: "You bought the packaging kit."
-        required_money: 4
-        required_world_flags:
-          packaging_kit_owned: false
-        money_delta: -4
-        inventory_delta:
-          packaging_kit: 1
-        set_world_flags:
-          packaging_kit_owned: true
-      buy_repair_kit:
-        message: "You bought one repair kit."
-        required_money: 5
-        money_delta: -5
-        inventory_delta:
-          repair_kit: 1
+    callable_actions:
+      buy:
+        description: "Buy one tool from the rack."
+        arguments:
+          item_id:
+            options: ["packaging_kit", "repair_kit"]
+        routes:
+          - match:
+              item_id: packaging_kit
+            effect:
+              message: "You bought the packaging kit."
+              required_money: 4
+              required_world_flags:
+                packaging_kit_owned: false
+              money_delta: -4
+              inventory_delta:
+                packaging_kit: 1
+              set_world_flags:
+                packaging_kit_owned: true
+          - match:
+              item_id: repair_kit
+            effect:
+              message: "You bought one repair kit."
+              required_money: 5
+              money_delta: -5
+              inventory_delta:
+                repair_kit: 1
 
 skills:
   - skill_id: delivery_basics

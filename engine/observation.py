@@ -5,6 +5,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+from engine.callable_actions import build_callable_actions
 from engine.dynamics import build_effective_object_view
 from engine.rules import format_time_label
 from engine.state import AgentState, Area, Location, Skill, WorldObject, WorldState
@@ -34,13 +35,28 @@ class AreaObservation(BaseModel):
     tags: list[str] = Field(default_factory=list)
 
 
+class CallableActionArgumentObservation(BaseModel):
+    name: str
+    type: str
+    required: bool = True
+    options: list[str] = Field(default_factory=list)
+    description: str = ""
+
+
+class CallableActionObservation(BaseModel):
+    action_name: str
+    description: str = ""
+    arguments: list[CallableActionArgumentObservation] = Field(default_factory=list)
+    signature_text: str
+
+
 class ObjectObservation(BaseModel):
     object_id: str
     name: str
     object_type: str
     summary: str
     visible_state: dict[str, Any] = Field(default_factory=dict)
-    action_ids: list[str] = Field(default_factory=list)
+    callable_actions: list[CallableActionObservation] = Field(default_factory=list)
 
 
 class SkillObservation(BaseModel):
@@ -90,13 +106,14 @@ def _project_area(area: Area) -> AreaObservation:
 
 
 def _project_object(world_object: WorldObject) -> ObjectObservation:
+    callable_actions = [_project_callable_action(item) for item in build_callable_actions(world_object)]
     return ObjectObservation(
         object_id=world_object.object_id,
         name=world_object.name,
         object_type=world_object.object_type,
         summary=world_object.summary,
         visible_state=deepcopy(world_object.visible_state),
-        action_ids=list(world_object.action_ids),
+        callable_actions=deepcopy(callable_actions),
     )
 
 
@@ -109,6 +126,35 @@ def _project_effective_object(state: WorldState, object_id: str) -> ObjectObserv
 
 def _project_skill(skill: Skill) -> SkillObservation:
     return SkillObservation(skill_id=skill.skill_id, name=skill.name, description=skill.description)
+
+
+def _project_callable_action(callable_action: dict[str, Any]) -> CallableActionObservation:
+    arguments = [
+        CallableActionArgumentObservation.model_validate(argument)
+        for argument in callable_action.get("arguments", [])
+    ]
+    return CallableActionObservation(
+        action_name=str(callable_action.get("action_name", "")).strip(),
+        description=str(callable_action.get("description", "")),
+        arguments=arguments,
+        signature_text=_format_callable_action_signature(
+            str(callable_action.get("action_name", "")).strip(),
+            arguments,
+        ),
+    )
+
+
+def _format_callable_action_signature(
+    action_name: str,
+    arguments: list[CallableActionArgumentObservation],
+) -> str:
+    if not arguments:
+        return action_name
+    formatted_arguments = [
+        f"{argument.name}: {'|'.join(argument.options) if argument.options else 'none'}"
+        for argument in arguments
+    ]
+    return f"{action_name}({', '.join(formatted_arguments)})"
 
 
 def _build_nearby_locations(state: WorldState, current_location: Location) -> list[str]:

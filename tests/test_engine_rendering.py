@@ -37,6 +37,18 @@ def test_render_tool_result_success_includes_snapshot():
     assert "Location: Workshop (workshop)" in rendered
 
 
+def test_render_snapshot_shows_parameterized_callable_actions():
+    env = _load_env("phase2_town")
+    env.reset()
+    env.step({"type": "move_to", "target_id": "market"})
+
+    result = env.step({"type": "move_to", "target_id": "supply_shop"})
+    rendered = render_tool_result({"type": "move_to", "target_id": "supply_shop"}, result)
+
+    assert "Supply Counter (supply_counter)" in rendered
+    assert "Callable actions: buy(item_id: packaging_sleeve|repair_part)." in rendered
+
+
 def test_render_tool_result_hides_internal_world_flags_for_missing_prerequisites():
     env = _load_env("demo_town")
     env.reset()
@@ -67,7 +79,7 @@ def test_render_tool_result_surfaces_exposed_actions_for_action_not_exposed():
     )
 
     assert "Hint: That action is not currently exposed on the target object." in rendered
-    assert "Available actions on target: brew_tea" in rendered
+    assert "Callable actions on object: brew_tea" in rendered
     assert "Visible state now: brewed_today=False" in rendered
 
 
@@ -104,10 +116,20 @@ def test_render_tool_result_surfaces_temporary_unavailability():
     env.step({"type": "move_to", "target_id": "supply_shop"})
 
     result = env.step(
-        {"type": "call_action", "target_id": "supply_counter", "action_name": "buy_packaging_sleeve"}
+        {
+            "type": "call_action",
+            "target_id": "supply_counter",
+            "action_name": "buy",
+            "args": {"item_id": "packaging_sleeve"},
+        }
     )
     rendered = render_tool_result(
-        {"type": "call_action", "target_id": "supply_counter", "action_name": "buy_packaging_sleeve"},
+        {
+            "type": "call_action",
+            "target_id": "supply_counter",
+            "action_name": "buy",
+            "args": {"item_id": "packaging_sleeve"},
+        },
         result,
     )
 

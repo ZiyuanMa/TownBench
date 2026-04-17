@@ -2,14 +2,27 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from engine.callable_actions import (
+    CallableActionAvailabilityOperation,
+    CallableActionResolutionError,
+    filter_callable_action_definitions,
+    resolve_callable_action,
+)
 from engine.rules import minute_of_day
-from engine.state import DynamicRule, ObjectActionEffect, TimeWindow, WorldObject, WorldState
+from engine.state import (
+    CallableActionMatcher,
+    DynamicRule,
+    ObjectActionEffect,
+    TimeWindow,
+    WorldObject,
+    WorldState,
+)
 
 
 @dataclass(frozen=True)
 class EffectiveObjectView:
     object: WorldObject
-    disabled_actions: tuple[str, ...]
+    disabled_routes: tuple[CallableActionMatcher, ...]
     active_rule_ids: tuple[str, ...]
 
 
@@ -37,7 +50,8 @@ def build_effective_object_view(
         return None
 
     effective_object = world_object.model_copy(deep=True)
-    action_availability = {action_name: True for action_name in effective_object.action_ids}
+    availability_operations: list[CallableActionAvailabilityOperation] = []
+    override_rules = []
     active_rule_ids: list[str] = []
 
     for rule in resolve_active_dynamic_rules(state, at_time=at_time):
@@ -48,29 +62,42 @@ def build_effective_object_view(
         active_rule_ids.append(rule.rule_id)
         if override.visible_state:
             effective_object.visible_state.update(override.visible_state)
-        if override.disabled_actions:
-            for action_name in override.disabled_actions:
-                action_availability[action_name] = False
-        if override.enabled_actions:
-            for action_name in override.enabled_actions:
-                action_availability[action_name] = True
-        for action_name, effect_override in override.action_overrides.items():
-            base_effect = effective_object.action_effects.get(action_name)
-            if base_effect is None:
-                continue
-            effective_object.action_effects[action_name] = apply_action_effect_override(base_effect, effect_override)
+        if override.disabled_callable_actions:
+            availability_operations.extend(
+                CallableActionAvailabilityOperation(enabled=False, matcher=matcher.model_copy(deep=True))
+                for matcher in override.disabled_callable_actions
+            )
+        if override.enabled_callable_actions:
+            availability_operations.extend(
+                CallableActionAvailabilityOperation(enabled=True, matcher=matcher.model_copy(deep=True))
+                for matcher in override.enabled_callable_actions
+            )
+        if override.callable_action_overrides:
+            override_rules.extend(rule.model_copy(deep=True) for rule in override.callable_action_overrides)
 
-    disabled_actions = tuple(
-        sorted(action_name for action_name, is_enabled in action_availability.items() if not is_enabled)
+    filtered_definitions, disabled_routes = filter_callable_action_definitions(
+        effective_object,
+        availability_operations=availability_operations,
+        override_rules=override_rules,
     )
-    if disabled_actions:
-        effective_object.action_ids = [
-            action_name for action_name in effective_object.action_ids if action_availability.get(action_name, True)
-        ]
+    effective_object.callable_actions = filtered_definitions
+
+    if not world_object.callable_actions:
+        effective_object.action_ids = list(filtered_definitions)
+        effective_object.action_effects = {
+            action_name: definition.routes[0].effect.model_copy(deep=True)
+            for action_name, definition in filtered_definitions.items()
+            if definition.routes and not definition.arguments
+        }
+
+    effective_object.actionable = effective_object.actionable or bool(filtered_definitions)
 
     return EffectiveObjectView(
         object=effective_object,
-        disabled_actions=disabled_actions,
+        disabled_routes=tuple(
+            CallableActionMatcher(action_name=action_name, action_args=action_args)
+            for action_name, action_args in disabled_routes
+        ),
         active_rule_ids=tuple(active_rule_ids),
     )
 
@@ -80,23 +107,20 @@ def build_effective_action_effect(
     object_id: str,
     action_name: str,
     *,
+    action_args: dict[str, str] | None = None,
     at_time: int | None = None,
 ) -> ObjectActionEffect | None:
     effective_view = build_effective_object_view(state, object_id, at_time=at_time)
     if effective_view is None:
         return None
-    return effective_view.object.action_effects.get(action_name)
-
-
-def apply_action_effect_override(
-    base_effect: ObjectActionEffect,
-    effect_override,
-) -> ObjectActionEffect:
-    updated_effect = base_effect.model_copy(deep=True)
-    override_data = effect_override.model_dump(exclude_none=True)
-    for field_name, value in override_data.items():
-        setattr(updated_effect, field_name, value)
-    return updated_effect
+    resolved_action = resolve_callable_action(
+        effective_view.object,
+        action_name=action_name,
+        action_args=dict(action_args or {}),
+    )
+    if resolved_action is None or isinstance(resolved_action, CallableActionResolutionError):
+        return None
+    return resolved_action.effect
 
 
 def matches_time_window(current_time: int, time_window: TimeWindow) -> bool:

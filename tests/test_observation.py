@@ -2,6 +2,10 @@ from runtime.env import TownBenchEnv
 from engine.state import (
     AgentState,
     Area,
+    CallableActionArgumentSpec,
+    CallableActionDefinition,
+    CallableActionMatcher,
+    CallableActionRoute,
     DynamicCondition,
     DynamicRule,
     DynamicRuleApplication,
@@ -169,7 +173,9 @@ def test_observation_projects_dynamic_visible_state_and_available_actions(minima
                 object_overrides={
                     "counter": ObjectDynamicOverride(
                         visible_state={"open": False},
-                        disabled_actions=["buy_snack"],
+                        disabled_callable_actions=[
+                            CallableActionMatcher(action_name="buy_snack"),
+                        ],
                     )
                 }
             ),
@@ -181,7 +187,37 @@ def test_observation_projects_dynamic_visible_state_and_available_actions(minima
     observation = env.reset()
 
     assert observation.visible_objects[0].visible_state["open"] is False
-    assert observation.visible_objects[0].action_ids == ["buy_drink"]
+    assert [item.action_name for item in observation.visible_objects[0].callable_actions] == ["buy_drink"]
+
+
+def test_observation_projects_parameterized_callable_actions(minimal_world_state):
+    state = minimal_world_state.model_copy(deep=True)
+    state.agent.location_id = "market"
+    state.objects["counter"].actionable = True
+    state.objects["counter"].callable_actions = {
+        "buy": CallableActionDefinition(
+            arguments={
+                "item_id": CallableActionArgumentSpec(options=["snack", "drink"]),
+            },
+            routes=[
+                CallableActionRoute(
+                    match={"item_id": "snack"},
+                    effect=ObjectActionEffect(message="Bought a snack."),
+                ),
+                CallableActionRoute(
+                    match={"item_id": "drink"},
+                    effect=ObjectActionEffect(message="Bought a drink."),
+                ),
+            ],
+        )
+    }
+    env = TownBenchEnv(state)
+
+    observation = env.reset()
+
+    assert [item.action_name for item in observation.visible_objects[0].callable_actions] == ["buy"]
+    assert observation.visible_objects[0].callable_actions[0].signature_text == "buy(item_id: snack|drink)"
+    assert observation.visible_objects[0].callable_actions[0].arguments[0].options == ["snack", "drink"]
 
 
 def test_inspect_requires_current_location_access(minimal_world_state):

@@ -2,6 +2,11 @@ from runtime.env import TownBenchEnv
 from engine.state import (
     ActionCost,
     Area,
+    CallableActionArgumentSpec,
+    CallableActionDefinition,
+    CallableActionMatcher,
+    CallableActionOverrideRule,
+    CallableActionRoute,
     DynamicCondition,
     DynamicRule,
     DynamicRuleApplication,
@@ -195,7 +200,7 @@ def test_call_action_required_agent_stats_blocks_execution(minimal_world_state):
     assert env.state.objects["counter"].visible_state == {"open": True}
 
 
-def test_call_action_accepts_top_level_action_name_and_args(minimal_world_state):
+def test_call_action_accepts_top_level_action_name(minimal_world_state):
     env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
     env.reset()
     env.state.agent.stats = {"carry_limit": 2}
@@ -216,12 +221,11 @@ def test_call_action_accepts_top_level_action_name_and_args(minimal_world_state)
             "type": "call_action",
             "target_id": "counter",
             "action_name": "rent_cart",
-            "args": {"note": "unused-for-now"},
         }
     )
 
     assert result.success is True
-    assert result.data["action"] == "rent_cart"
+    assert result.data["action_name"] == "rent_cart"
     assert env.state.agent.stats == {"carry_limit": 5}
 
 
@@ -243,6 +247,98 @@ def test_call_action_rejects_legacy_args_action_format(minimal_world_state):
 
     assert result.success is False
     assert result.warnings == ["missing_action_name"]
+
+
+def test_call_action_can_resolve_parameterized_object_action(minimal_world_state):
+    env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
+    env.reset()
+    env.state.objects["counter"].actionable = True
+    env.state.objects["counter"].callable_actions = {
+        "buy": CallableActionDefinition(
+            description="Buy one item from the counter.",
+            arguments={
+                "item_id": CallableActionArgumentSpec(options=["snack", "drink"]),
+            },
+            routes=[
+                CallableActionRoute(
+                    match={"item_id": "snack"},
+                    effect=ObjectActionEffect(message="Bought a snack.", money_delta=-3, required_money=3),
+                ),
+                CallableActionRoute(
+                    match={"item_id": "drink"},
+                    effect=ObjectActionEffect(message="Bought a drink.", money_delta=-2, required_money=2),
+                ),
+            ],
+        )
+    }
+    env.step({"type": "move_to", "target_id": "market"})
+
+    result = env.step(
+        {
+            "type": "call_action",
+            "target_id": "counter",
+            "action_name": "buy",
+            "args": {"item_id": "snack"},
+        }
+    )
+
+    assert result.success is True
+    assert result.data["action_name"] == "buy"
+    assert result.data["action_args"] == {"item_id": "snack"}
+    assert env.state.agent.money == 17
+
+
+def test_call_action_parameterized_action_requires_action_args(minimal_world_state):
+    env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
+    env.reset()
+    env.state.objects["counter"].actionable = True
+    env.state.objects["counter"].callable_actions = {
+        "buy": CallableActionDefinition(
+            arguments={
+                "item_id": CallableActionArgumentSpec(options=["snack", "drink"]),
+            },
+            routes=[
+                CallableActionRoute(match={"item_id": "snack"}, effect=ObjectActionEffect(message="Bought a snack.")),
+                CallableActionRoute(match={"item_id": "drink"}, effect=ObjectActionEffect(message="Bought a drink.")),
+            ],
+        )
+    }
+    env.step({"type": "move_to", "target_id": "market"})
+
+    result = env.step({"type": "call_action", "target_id": "counter", "action_name": "buy"})
+
+    assert result.success is False
+    assert result.warnings == ["missing_action_args"]
+
+
+def test_call_action_parameterized_action_rejects_invalid_action_args(minimal_world_state):
+    env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
+    env.reset()
+    env.state.objects["counter"].actionable = True
+    env.state.objects["counter"].callable_actions = {
+        "buy": CallableActionDefinition(
+            arguments={
+                "item_id": CallableActionArgumentSpec(options=["snack", "drink"]),
+            },
+            routes=[
+                CallableActionRoute(match={"item_id": "snack"}, effect=ObjectActionEffect(message="Bought a snack.")),
+                CallableActionRoute(match={"item_id": "drink"}, effect=ObjectActionEffect(message="Bought a drink.")),
+            ],
+        )
+    }
+    env.step({"type": "move_to", "target_id": "market"})
+
+    result = env.step(
+        {
+            "type": "call_action",
+            "target_id": "counter",
+            "action_name": "buy",
+            "args": {"item_id": "apple"},
+        }
+    )
+
+    assert result.success is False
+    assert result.warnings == ["invalid_action_args"]
 
 
 def test_call_action_agent_stat_deltas_update_state_and_payload(minimal_world_state):
@@ -346,7 +442,9 @@ def test_call_action_reports_temporarily_unavailable_when_disabled_by_dynamic_ru
                 object_overrides={
                     "counter": ObjectDynamicOverride(
                         visible_state={"open": False},
-                        disabled_actions=["buy_snack"],
+                        disabled_callable_actions=[
+                            CallableActionMatcher(action_name="buy_snack"),
+                        ],
                     )
                 }
             ),
@@ -389,7 +487,9 @@ def test_call_action_can_run_when_higher_priority_rule_reenables_action(minimal_
                 object_overrides={
                     "counter": ObjectDynamicOverride(
                         visible_state={"open": False},
-                        disabled_actions=["buy_snack"],
+                        disabled_callable_actions=[
+                            CallableActionMatcher(action_name="buy_snack"),
+                        ],
                     )
                 }
             ),
@@ -402,7 +502,9 @@ def test_call_action_can_run_when_higher_priority_rule_reenables_action(minimal_
                 object_overrides={
                     "counter": ObjectDynamicOverride(
                         visible_state={"open": True, "special_window": True},
-                        enabled_actions=["buy_snack"],
+                        enabled_callable_actions=[
+                            CallableActionMatcher(action_name="buy_snack"),
+                        ],
                     )
                 }
             ),
@@ -885,7 +987,7 @@ def test_call_action_updates_observation_when_visible_state_changes_without_reso
     assert result.success is True
     assert result.energy_delta == 0
     assert [item.object_id for item in result.observation.visible_objects] == ["counter"]
-    assert result.observation.visible_objects[0].action_ids == ["mark_sold"]
+    assert [item.action_name for item in result.observation.visible_objects[0].callable_actions] == ["mark_sold"]
     assert result.observation.visible_objects[0].visible_state == {"open": False, "sold_out": True}
 
 

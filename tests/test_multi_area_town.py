@@ -14,7 +14,14 @@ def _run_tea_loop(env: TownBenchEnv) -> None:
     env.step({"type": "move_to", "target_id": "fuel_counter"})
     env.step({"type": "call_action", "target_id": "fuel_rack", "action_name": "buy_fuel_canister"})
     env.step({"type": "move_to", "target_id": "supply_shop"})
-    env.step({"type": "call_action", "target_id": "supply_counter", "action_name": "buy_packaging_sleeve"})
+    env.step(
+        {
+            "type": "call_action",
+            "target_id": "supply_counter",
+            "action_name": "buy",
+            "args": {"item_id": "packaging_sleeve"},
+        }
+    )
     env.step({"type": "move_to", "target_id": "market"})
     env.step({"type": "move_to", "target_id": "workshop_lobby"})
     env.step({"type": "move_to", "target_id": "tea_room"})
@@ -23,7 +30,14 @@ def _run_tea_loop(env: TownBenchEnv) -> None:
     env.step({"type": "call_action", "target_id": "packaging_table", "action_name": "pack_tea"})
     env.step({"type": "move_to", "target_id": "workshop_lobby"})
     env.step({"type": "move_to", "target_id": "market"})
-    env.step({"type": "call_action", "target_id": "goods_buyer", "action_name": "sell_packed_tea"})
+    env.step(
+        {
+            "type": "call_action",
+            "target_id": "goods_buyer",
+            "action_name": "sell",
+            "args": {"item_id": "packed_tea"},
+        }
+    )
 
 
 def _run_meal_loop(env: TownBenchEnv) -> None:
@@ -41,7 +55,14 @@ def _run_repair_loop_from_cafe(env: TownBenchEnv) -> None:
     env.step({"type": "move_to", "target_id": "cafe_front"})
     env.step({"type": "move_to", "target_id": "market"})
     env.step({"type": "move_to", "target_id": "supply_shop"})
-    env.step({"type": "call_action", "target_id": "supply_counter", "action_name": "buy_repair_part"})
+    env.step(
+        {
+            "type": "call_action",
+            "target_id": "supply_counter",
+            "action_name": "buy",
+            "args": {"item_id": "repair_part"},
+        }
+    )
     env.step({"type": "move_to", "target_id": "market"})
     env.step({"type": "move_to", "target_id": "workshop_lobby"})
     env.step({"type": "move_to", "target_id": "repair_room"})
@@ -105,7 +126,14 @@ def test_multi_area_town_packaging_requires_exact_room():
     env.step({"type": "move_to", "target_id": "fuel_counter"})
     env.step({"type": "call_action", "target_id": "fuel_rack", "action_name": "buy_fuel_canister"})
     env.step({"type": "move_to", "target_id": "supply_shop"})
-    env.step({"type": "call_action", "target_id": "supply_counter", "action_name": "buy_packaging_sleeve"})
+    env.step(
+        {
+            "type": "call_action",
+            "target_id": "supply_counter",
+            "action_name": "buy",
+            "args": {"item_id": "packaging_sleeve"},
+        }
+    )
     env.step({"type": "move_to", "target_id": "market"})
     env.step({"type": "move_to", "target_id": "workshop_lobby"})
     env.step({"type": "move_to", "target_id": "tea_room"})
@@ -143,7 +171,12 @@ def test_multi_area_town_repair_loop_requires_more_startup_capital_than_meal_loo
     env.step({"type": "move_to", "target_id": "supply_shop"})
 
     early_repair = env.step(
-        {"type": "call_action", "target_id": "supply_counter", "action_name": "buy_repair_part"}
+        {
+            "type": "call_action",
+            "target_id": "supply_counter",
+            "action_name": "buy",
+            "args": {"item_id": "repair_part"},
+        }
     )
     env.step({"type": "move_to", "target_id": "market"})
     _run_meal_loop(env)

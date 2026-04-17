@@ -54,8 +54,8 @@ def render_initial_observation(
         lines.append("Visible objects:")
         for item in normalized.visible_objects:
             line = f"- {item.name} ({item.object_id}): {item.summary}"
-            if item.action_ids:
-                line += f" Actions: {', '.join(item.action_ids)}."
+            if item.callable_actions:
+                line += f" Callable actions: {_format_callable_actions(item.callable_actions)}."
             if item.visible_state:
                 line += f" Visible state: {_format_mapping(item.visible_state)}."
             lines.append(line)
@@ -119,8 +119,8 @@ def _render_success_details(action: Action, data: dict[str, Any]) -> list[str]:
                 f"Object id: {obj.get('object_id', '')}",
                 f"Summary: {obj.get('summary', '')}",
             ]
-            if obj.get("action_ids"):
-                details.append(f"Available actions: {', '.join(obj['action_ids'])}")
+            if obj.get("callable_actions"):
+                details.append(f"Callable actions: {_format_callable_actions(obj['callable_actions'])}")
             if obj.get("visible_state"):
                 details.append(f"Visible state: {_format_mapping(obj['visible_state'])}")
             return details
@@ -138,8 +138,10 @@ def _render_success_details(action: Action, data: dict[str, Any]) -> list[str]:
 
     if action.type == "call_action":
         details = []
-        if data.get("action"):
-            details.append(f"Action: {data['action']}")
+        if data.get("action_name"):
+            details.append(f"Action name: {data['action_name']}")
+        if data.get("action_args"):
+            details.append(f"Action args: {_format_mapping(data['action_args'])}")
         if data.get("location_id"):
             details.append(f"Current location: {data['location_id']}")
         if data.get("visible_state"):
@@ -174,6 +176,10 @@ def _build_failure_summary(result: StepResult) -> str | None:
         return "This tool call is missing the target id it needs."
     if error_type == "missing_action_name":
         return "This action call is missing the action name."
+    if error_type == "missing_action_args":
+        return "This action call is missing required action_args."
+    if error_type == "invalid_action_args":
+        return "The provided action_args do not match any valid option for this action."
     if error_type in {"unknown_target", "unknown_skill", "unknown_location"}:
         return "The id you provided is not recognized in the current environment."
     if error_type == "unreachable_location":
@@ -235,6 +241,16 @@ def _build_failure_next_steps(action: Action, result: StepResult) -> list[str]:
         return _take_steps(
             "Provide an action_name when calling call_action.",
             "Inspect the target first if you need to see which actions are currently exposed.",
+        )
+    if error_type == "missing_action_args":
+        return _take_steps(
+            "Provide the required action_args for the chosen action_name.",
+            "Inspect the target first if you need to see the callable action signatures and allowed values.",
+        )
+    if error_type == "invalid_action_args":
+        return _take_steps(
+            "Use one of the allowed action_args shown for the object's callable actions.",
+            "Avoid inventing argument names or values that were not exposed.",
         )
 
     if error_type == "unknown_skill":
@@ -328,6 +344,8 @@ def _render_failure_context(action: Action, data: dict[str, Any]) -> list[str]:
         details.append(f"Requested target: {target_id}")
     if requested_action:
         details.append(f"Requested action: {requested_action}")
+    if data.get("requested_action_args"):
+        details.append(f"Requested action args: {_format_mapping(data['requested_action_args'])}")
     if data.get("current_location_id"):
         details.append(f"Current location: {data['current_location_id']}")
     if data.get("current_time"):
@@ -338,7 +356,9 @@ def _render_failure_context(action: Action, data: dict[str, Any]) -> list[str]:
         details.append(f"Visible objects now: {_format_list(data.get('visible_object_ids', []))}")
     if "visible_skill_ids" in data:
         details.append(f"Visible skills now: {_format_list(data.get('visible_skill_ids', []))}")
-    if "available_actions" in data:
+    if data.get("callable_actions"):
+        details.append(f"Callable actions on object: {_format_callable_actions(data['callable_actions'])}")
+    elif "available_actions" in data:
         details.append(f"Available actions on target: {_format_list(data.get('available_actions', []))}")
     if data.get("visible_state"):
         details.append(f"Visible state now: {_format_mapping(data['visible_state'])}")
@@ -422,8 +442,8 @@ def _render_observation_snapshot(observation: Observation) -> list[str]:
         lines.append("Visible objects:")
         for item in observation.visible_objects:
             object_line = f"- {item.name} ({item.object_id})"
-            if item.action_ids:
-                object_line += f" Actions: {', '.join(item.action_ids)}."
+            if item.callable_actions:
+                object_line += f" Callable actions: {_format_callable_actions(item.callable_actions)}."
             visible_state = item.visible_state
             if visible_state:
                 object_line += f" Visible state: {_format_mapping(visible_state)}."
@@ -450,6 +470,29 @@ def _format_list(values: list[str]) -> str:
     if not values:
         return "none"
     return ", ".join(values)
+
+
+def _format_callable_actions(actions: list[Any]) -> str:
+    parts: list[str] = []
+    for action in actions:
+        action_data = action.model_dump() if hasattr(action, "model_dump") else action
+        action_name = str(action_data.get("action_name", "")).strip()
+        signature_text = str(action_data.get("signature_text", "")).strip()
+        if signature_text:
+            parts.append(signature_text)
+            continue
+        arguments = action_data.get("arguments", [])
+        if not arguments:
+            parts.append(action_name)
+            continue
+        formatted_arguments: list[str] = []
+        for argument in arguments:
+            argument_data = argument.model_dump() if hasattr(argument, "model_dump") else argument
+            argument_name = str(argument_data.get("name", "")).strip()
+            options = [str(option) for option in argument_data.get("options", [])]
+            formatted_arguments.append(f"{argument_name}: {'|'.join(options) if options else 'none'}")
+        parts.append(f"{action_name}({', '.join(formatted_arguments)})")
+    return ", ".join(parts)
 
 
 def _normalize_observation(observation: Observation | dict[str, Any]) -> Observation:

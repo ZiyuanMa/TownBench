@@ -5,8 +5,9 @@ from typing import Union
 
 import yaml
 
+from engine.callable_actions import get_callable_action_definitions, matches_callable_action_matcher
 from engine.rules import inventory_capacity, inventory_load, parse_time_label
-from engine.state import Area, Location, Skill, WorldObject, WorldState
+from engine.state import Area, CallableActionMatcher, Location, Skill, WorldObject, WorldState
 from scenario.schema import ScenarioConfig, ScenarioObjectSource
 
 
@@ -203,6 +204,73 @@ def _validate_location_areas(locations: dict[str, Location], *, areas: dict[str,
 def _validate_object_source(item: ScenarioObjectSource, *, locations: dict[str, Location]) -> None:
     if item.location_id not in locations:
         raise ValueError(f"Object `{item.object_id}` references unknown location `{item.location_id}`.")
+    has_legacy_actions = bool(item.action_ids or item.action_effects)
+    has_callable_actions = bool(item.callable_actions)
+    if has_legacy_actions and has_callable_actions:
+        raise ValueError(
+            f"Object `{item.object_id}` must use either legacy action_ids/action_effects or callable_actions, not both."
+        )
+    if has_callable_actions:
+        for action_name, callable_action in item.callable_actions.items():
+            if not callable_action.routes:
+                raise ValueError(
+                    f"Object `{item.object_id}` callable action `{action_name}` must declare routes."
+                )
+            if len(callable_action.arguments) > 1:
+                raise ValueError(
+                    f"Object `{item.object_id}` callable action `{action_name}` may declare at most one argument."
+                )
+            for argument_name, argument_spec in callable_action.arguments.items():
+                if not argument_spec.options:
+                    raise ValueError(
+                        f"Object `{item.object_id}` callable action `{action_name}` argument `{argument_name}` "
+                        "must declare at least one enum option."
+                    )
+
+            seen_routes: set[tuple[tuple[str, str], ...]] = set()
+            for route in callable_action.routes:
+                unknown_arguments = sorted(set(route.match) - set(callable_action.arguments))
+                if unknown_arguments:
+                    argument_list = ", ".join(unknown_arguments)
+                    raise ValueError(
+                        f"Object `{item.object_id}` callable action `{action_name}` references unknown argument(s): "
+                        f"{argument_list}."
+                    )
+                missing_arguments = sorted(
+                    argument_name
+                    for argument_name, argument_spec in callable_action.arguments.items()
+                    if argument_spec.required and argument_name not in route.match
+                )
+                if missing_arguments:
+                    argument_list = ", ".join(missing_arguments)
+                    raise ValueError(
+                        f"Object `{item.object_id}` callable action `{action_name}` is missing argument value(s): "
+                        f"{argument_list}."
+                    )
+                for argument_name, value in route.match.items():
+                    argument_spec = callable_action.arguments[argument_name]
+                    if value not in argument_spec.options:
+                        raise ValueError(
+                            f"Object `{item.object_id}` callable action `{action_name}` has unsupported value "
+                            f"`{value}` for argument `{argument_name}`."
+                        )
+                route_signature = tuple(sorted(route.match.items()))
+                if route_signature in seen_routes:
+                    raise ValueError(
+                        f"Object `{item.object_id}` callable action `{action_name}` defines duplicate route matches."
+                    )
+                seen_routes.add(route_signature)
+
+            if not callable_action.arguments and len(callable_action.routes) != 1:
+                raise ValueError(
+                    f"Object `{item.object_id}` zero-argument callable action `{action_name}` must declare exactly one route."
+                )
+            if not callable_action.arguments and callable_action.routes[0].match:
+                raise ValueError(
+                    f"Object `{item.object_id}` zero-argument callable action `{action_name}` must use an empty route match."
+                )
+        return
+
     if set(item.action_effects) - set(item.action_ids):
         raise ValueError(
             f"Object `{item.object_id}` has action_effects that are not exposed in action_ids."
@@ -219,36 +287,44 @@ def _validate_event_rules(
     known_locations = set(locations)
 
     for world_object in objects.values():
-        for action_name, effect in world_object.action_effects.items():
-            move_target = effect.move_to_location_id
-            if move_target and move_target not in known_locations:
-                raise ValueError(
-                    f"Object `{world_object.object_id}` action `{action_name}` references unknown location "
-                    f"`{move_target}`."
-                )
+        for action_name, callable_action in get_callable_action_definitions(world_object).items():
+            for route in callable_action.routes:
+                move_target = route.effect.move_to_location_id
+                if move_target and move_target not in known_locations:
+                    raise ValueError(
+                        f"Object `{world_object.object_id}` action `{action_name}` references unknown location "
+                        f"`{move_target}`."
+                    )
 
     for rule in config.dynamic_rules:
         for object_id, override in rule.apply.object_overrides.items():
             world_object = objects.get(object_id)
             if world_object is None:
                 raise ValueError(f"Dynamic rule `{rule.rule_id}` references unknown object `{object_id}`.")
-            unknown_disabled_actions = sorted(set(override.disabled_actions) - set(world_object.action_ids))
-            if unknown_disabled_actions:
-                action_list = ", ".join(unknown_disabled_actions)
-                raise ValueError(
-                    f"Dynamic rule `{rule.rule_id}` disables unknown action(s) on `{object_id}`: {action_list}."
+            callable_actions = get_callable_action_definitions(world_object)
+            for matcher in override.disabled_callable_actions:
+                _validate_callable_action_matcher(
+                    matcher,
+                    callable_actions=callable_actions,
+                    rule_id=rule.rule_id,
+                    object_id=object_id,
+                    label="disables",
                 )
-            unknown_enabled_actions = sorted(set(override.enabled_actions) - set(world_object.action_ids))
-            if unknown_enabled_actions:
-                action_list = ", ".join(unknown_enabled_actions)
-                raise ValueError(
-                    f"Dynamic rule `{rule.rule_id}` enables unknown action(s) on `{object_id}`: {action_list}."
+            for matcher in override.enabled_callable_actions:
+                _validate_callable_action_matcher(
+                    matcher,
+                    callable_actions=callable_actions,
+                    rule_id=rule.rule_id,
+                    object_id=object_id,
+                    label="enables",
                 )
-            unknown_action_overrides = sorted(set(override.action_overrides) - set(world_object.action_ids))
-            if unknown_action_overrides:
-                action_list = ", ".join(unknown_action_overrides)
-                raise ValueError(
-                    f"Dynamic rule `{rule.rule_id}` overrides unknown action(s) on `{object_id}`: {action_list}."
+            for override_rule in override.callable_action_overrides:
+                _validate_callable_action_matcher(
+                    override_rule.match,
+                    callable_actions=callable_actions,
+                    rule_id=rule.rule_id,
+                    object_id=object_id,
+                    label="overrides",
                 )
 
     for rule in config.event_rules:
@@ -263,4 +339,46 @@ def _validate_initial_agent_capacity(state: WorldState) -> None:
     if carry_limit is not None and inventory_load(state.agent.inventory) > carry_limit:
         raise ValueError(
             "Initial agent inventory exceeds the configured carry_limit."
+        )
+
+
+def _validate_callable_action_matcher(
+    matcher: CallableActionMatcher,
+    *,
+    callable_actions,
+    rule_id: str,
+    object_id: str,
+    label: str,
+) -> None:
+    callable_action = callable_actions.get(matcher.action_name)
+    if callable_action is None:
+        raise ValueError(
+            f"Dynamic rule `{rule_id}` {label} unknown callable action `{matcher.action_name}` on `{object_id}`."
+        )
+
+    unknown_arguments = sorted(set(matcher.action_args) - set(callable_action.arguments))
+    if unknown_arguments:
+        argument_list = ", ".join(unknown_arguments)
+        raise ValueError(
+            f"Dynamic rule `{rule_id}` matcher for `{object_id}` references unknown argument(s): {argument_list}."
+        )
+    if len(matcher.action_args) > 1:
+        raise ValueError(
+            f"Dynamic rule `{rule_id}` matcher for `{object_id}` may specify at most one action arg."
+        )
+
+    for argument_name, value in matcher.action_args.items():
+        argument_spec = callable_action.arguments[argument_name]
+        if value not in argument_spec.options:
+            raise ValueError(
+                f"Dynamic rule `{rule_id}` matcher for `{object_id}` has unsupported value "
+                f"`{value}` for argument `{argument_name}`."
+            )
+
+    if not any(
+        matches_callable_action_matcher(matcher.action_name, route.match, matcher)
+        for route in callable_action.routes
+    ):
+        raise ValueError(
+            f"Dynamic rule `{rule_id}` matcher for `{object_id}` does not match any callable action route."
         )

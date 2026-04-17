@@ -3,6 +3,12 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
+from engine.callable_actions import (
+    CallableActionResolutionError,
+    build_callable_actions,
+    matches_callable_action_matcher,
+    resolve_callable_action,
+)
 from engine.action_models import Action, ActionExecution, PayloadBuilder
 from engine.dynamics import build_effective_object_view
 from engine.rules import apply_state_delta, format_time_label, matches_world_flags
@@ -243,6 +249,9 @@ def _handle_call_action(state: WorldState, action: Action) -> ActionExecution:
         )
 
     effective_object = effective_view.object
+    callable_actions = build_callable_actions(effective_object)
+    base_callable_actions = build_callable_actions(world_object)
+    base_resolved_action = resolve_callable_action(world_object, action_name=action_name, action_args=action.args)
     if not world_object.actionable:
         return _failure(
             "not_actionable",
@@ -250,13 +259,26 @@ def _handle_call_action(state: WorldState, action: Action) -> ActionExecution:
             result_data={
                 "target_id": action.target_id,
                 "requested_action": action_name,
-                "available_actions": list(effective_object.action_ids),
+                "available_actions": [item["action_name"] for item in callable_actions],
+                "callable_actions": callable_actions,
             },
         )
-    if action_name not in effective_object.action_ids:
+    resolved_action = resolve_callable_action(effective_object, action_name=action_name, action_args=action.args)
+    if resolved_action is None:
         error_type = "action_not_exposed"
         message = f"Action `{action_name}` is not exposed on `{action.target_id}` in the current location."
-        if action_name in world_object.action_ids and action_name in effective_view.disabled_actions:
+        normalized_action_args = {key: str(value) for key, value in action.args.items()}
+        if any(
+            matches_callable_action_matcher(action_name, normalized_action_args, matcher)
+            for matcher in effective_view.disabled_routes
+        ):
+            error_type = "action_temporarily_unavailable"
+            message = f"Action `{action_name}` on `{action.target_id}` is temporarily unavailable."
+        elif (
+            not isinstance(base_resolved_action, CallableActionResolutionError)
+            and base_resolved_action is not None
+            and action_name not in {item["action_name"] for item in callable_actions}
+        ):
             error_type = "action_temporarily_unavailable"
             message = f"Action `{action_name}` on `{action.target_id}` is temporarily unavailable."
         return _failure(
@@ -265,7 +287,9 @@ def _handle_call_action(state: WorldState, action: Action) -> ActionExecution:
             result_data={
                 "target_id": action.target_id,
                 "requested_action": action_name,
-                "available_actions": list(effective_object.action_ids),
+                "requested_action_args": dict(action.args),
+                "callable_actions": callable_actions,
+                "base_callable_actions": base_callable_actions,
                 "current_time": format_time_label(state.current_time),
                 "dynamic_reason": (
                     "disabled_by_dynamic_rule" if error_type == "action_temporarily_unavailable" else None
@@ -273,18 +297,42 @@ def _handle_call_action(state: WorldState, action: Action) -> ActionExecution:
                 "visible_state": deepcopy(effective_object.visible_state),
             },
         )
-
-    effect = effective_object.action_effects.get(action_name)
-    if effect is None:
+    if isinstance(resolved_action, CallableActionResolutionError):
+        normalized_action_args = {key: str(value) for key, value in action.args.items()}
+        if (
+            resolved_action.error_type == "invalid_action_args"
+            and any(
+                matches_callable_action_matcher(action_name, normalized_action_args, matcher)
+                for matcher in effective_view.disabled_routes
+            )
+        ):
+            return _failure(
+                "action_temporarily_unavailable",
+                f"Action `{action_name}` on `{action.target_id}` is temporarily unavailable.",
+                result_data={
+                    "target_id": action.target_id,
+                    "requested_action": action_name,
+                    "requested_action_args": dict(action.args),
+                    "callable_actions": callable_actions,
+                    "base_callable_actions": base_callable_actions,
+                    "current_time": format_time_label(state.current_time),
+                    "dynamic_reason": "disabled_by_dynamic_rule",
+                    "visible_state": deepcopy(effective_object.visible_state),
+                },
+            )
         return _failure(
-            "unknown_object_action",
-            f"Target `{action.target_id}` does not support `{action_name}`.",
+            resolved_action.error_type,
+            resolved_action.message,
             result_data={
                 "target_id": action.target_id,
                 "requested_action": action_name,
-                "available_actions": list(effective_object.action_ids),
+                "requested_action_args": dict(action.args),
+                "callable_actions": callable_actions,
+                "base_callable_actions": base_callable_actions,
+                **resolved_action.data,
             },
         )
+    effect = resolved_action.effect
     if not matches_world_flags(state.world_flags, effect.required_world_flags):
         return _failure(
             "missing_prerequisites",
@@ -292,6 +340,8 @@ def _handle_call_action(state: WorldState, action: Action) -> ActionExecution:
             result_data={
                 "target_id": action.target_id,
                 "requested_action": action_name,
+                "requested_action_args": dict(resolved_action.action_args),
+                "callable_actions": callable_actions,
                 "required_world_flags": dict(effect.required_world_flags),
             },
         )
@@ -302,6 +352,8 @@ def _handle_call_action(state: WorldState, action: Action) -> ActionExecution:
             result_data={
                 "target_id": action.target_id,
                 "requested_action": action_name,
+                "requested_action_args": dict(resolved_action.action_args),
+                "callable_actions": callable_actions,
                 "required_inventory": dict(effect.required_inventory),
                 "current_inventory": dict(state.agent.inventory),
             },
@@ -313,6 +365,8 @@ def _handle_call_action(state: WorldState, action: Action) -> ActionExecution:
             result_data={
                 "target_id": action.target_id,
                 "requested_action": action_name,
+                "requested_action_args": dict(resolved_action.action_args),
+                "callable_actions": callable_actions,
                 "required_agent_stats": dict(effect.required_agent_stats),
                 "current_agent_stats": dict(state.agent.stats),
             },
@@ -324,6 +378,8 @@ def _handle_call_action(state: WorldState, action: Action) -> ActionExecution:
             result_data={
                 "target_id": action.target_id,
                 "requested_action": action_name,
+                "requested_action_args": dict(resolved_action.action_args),
+                "callable_actions": callable_actions,
                 "required_money": effect.required_money,
                 "current_money": state.agent.money,
             },
@@ -335,6 +391,8 @@ def _handle_call_action(state: WorldState, action: Action) -> ActionExecution:
             result_data={
                 "target_id": action.target_id,
                 "requested_action": action_name,
+                "requested_action_args": dict(resolved_action.action_args),
+                "callable_actions": callable_actions,
                 "referenced_location_id": effect.move_to_location_id,
             },
         )
@@ -354,10 +412,11 @@ def _handle_call_action(state: WorldState, action: Action) -> ActionExecution:
         state.agent.location_id = effect.move_to_location_id
     return _success(
         effect.message,
-        payload_builder=lambda current_state, object_id=world_object.object_id, action_name=action_name: {
+        payload_builder=lambda current_state, object_id=world_object.object_id, action_name=resolved_action.action_name, action_args=dict(resolved_action.action_args): {
             "kind": "action",
             "object_id": object_id,
-            "action": action_name,
+            "action_name": action_name,
+            "action_args": action_args,
             "current_time": format_time_label(current_state.current_time),
             "visible_state": _serialize_effective_object(current_state, object_id)["visible_state"],
             "world_flags": dict(current_state.world_flags),
@@ -406,9 +465,11 @@ def _resolve_object_action_name(action: Action) -> str:
 
 def _serialize_object(world_object: WorldObject) -> dict[str, Any]:
     data = world_object.model_dump(
-        include={"object_id", "name", "object_type", "summary", "visible_state", "action_ids"}
+        include={"object_id", "name", "object_type", "summary", "visible_state"}
     )
     data["visible_state"] = deepcopy(world_object.visible_state)
+    callable_actions = build_callable_actions(world_object)
+    data["callable_actions"] = deepcopy(callable_actions)
     return data
 
 

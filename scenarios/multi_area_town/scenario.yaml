@@ -251,21 +251,30 @@ objects:
       packed_tea_payout: 14
       dusty_trinket_payout: 0
     actionable: true
-    action_ids: ["sell_packed_tea", "sell_dusty_trinket"]
-    action_effects:
-      sell_packed_tea:
-        message: "You sold one packed tea lot."
-        required_inventory:
-          packed_tea: 1
-        money_delta: 14
-        inventory_delta:
-          packed_tea: -1
-      sell_dusty_trinket:
-        message: "You cleared one dusty trinket for almost nothing."
-        required_inventory:
-          dusty_trinket: 1
-        inventory_delta:
-          dusty_trinket: -1
+    callable_actions:
+      sell:
+        description: "Sell one finished or leftover item to the buyer."
+        arguments:
+          item_id:
+            options: ["packed_tea", "dusty_trinket"]
+        routes:
+          - match:
+              item_id: packed_tea
+            effect:
+              message: "You sold one packed tea lot."
+              required_inventory:
+                packed_tea: 1
+              money_delta: 14
+              inventory_delta:
+                packed_tea: -1
+          - match:
+              item_id: dusty_trinket
+            effect:
+              message: "You cleared one dusty trinket for almost nothing."
+              required_inventory:
+                dusty_trinket: 1
+              inventory_delta:
+                dusty_trinket: -1
 
   - object_id: tea_station
     name: Tea Station
@@ -374,20 +383,29 @@ objects:
       packaging_sleeve_price: 1
       repair_part_price: 6
     actionable: true
-    action_ids: ["buy_packaging_sleeve", "buy_repair_part"]
-    action_effects:
-      buy_packaging_sleeve:
-        message: "You bought one packaging sleeve."
-        required_money: 1
-        money_delta: -1
-        inventory_delta:
-          packaging_sleeve: 1
-      buy_repair_part:
-        message: "You bought one repair part."
-        required_money: 6
-        money_delta: -6
-        inventory_delta:
-          repair_part: 1
+    callable_actions:
+      buy:
+        description: "Buy one supply item from the counter."
+        arguments:
+          item_id:
+            options: ["packaging_sleeve", "repair_part"]
+        routes:
+          - match:
+              item_id: packaging_sleeve
+            effect:
+              message: "You bought one packaging sleeve."
+              required_money: 1
+              money_delta: -1
+              inventory_delta:
+                packaging_sleeve: 1
+          - match:
+              item_id: repair_part
+            effect:
+              message: "You bought one repair part."
+              required_money: 6
+              money_delta: -6
+              inventory_delta:
+                repair_part: 1
 
   - object_id: locker_desk
     name: Locker Desk

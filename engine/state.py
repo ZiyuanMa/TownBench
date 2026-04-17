@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -64,13 +64,27 @@ class ActionEffectOverride(BaseModel):
     set_world_flags: dict[str, bool] | None = None
 
 
+class CallableActionMatcher(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    action_name: str
+    action_args: dict[str, str] = Field(default_factory=dict)
+
+
+class CallableActionOverrideRule(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    match: CallableActionMatcher
+    override: ActionEffectOverride
+
+
 class ObjectDynamicOverride(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     visible_state: dict[str, Any] = Field(default_factory=dict)
-    disabled_actions: list[str] = Field(default_factory=list)
-    enabled_actions: list[str] = Field(default_factory=list)
-    action_overrides: dict[str, ActionEffectOverride] = Field(default_factory=dict)
+    disabled_callable_actions: list[CallableActionMatcher] = Field(default_factory=list)
+    enabled_callable_actions: list[CallableActionMatcher] = Field(default_factory=list)
+    callable_action_overrides: list[CallableActionOverrideRule] = Field(default_factory=list)
 
 
 class DynamicRuleApplication(BaseModel):
@@ -139,6 +153,31 @@ class WorldObject(BaseModel):
     actionable: bool = False
     resource_content: str | None = None
     action_effects: dict[str, "ObjectActionEffect"] = Field(default_factory=dict)
+    callable_actions: dict[str, "CallableActionDefinition"] = Field(default_factory=dict)
+
+
+class CallableActionArgumentSpec(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["enum"] = "enum"
+    required: bool = True
+    options: list[str] = Field(default_factory=list)
+    description: str = ""
+
+
+class CallableActionRoute(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    match: dict[str, str] = Field(default_factory=dict)
+    effect: "ObjectActionEffect"
+
+
+class CallableActionDefinition(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    description: str = ""
+    arguments: dict[str, CallableActionArgumentSpec] = Field(default_factory=dict)
+    routes: list[CallableActionRoute] = Field(default_factory=list)
 
 
 class ObjectActionEffect(BaseModel):

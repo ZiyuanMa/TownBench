@@ -70,7 +70,14 @@ def test_phase1_tea_loop_requires_the_tool_investment_and_then_turns_profitable(
 
     env.step({"type": "move_to", "target_id": "market"})
     env.step({"type": "move_to", "target_id": "supply_shop"})
-    buy_kit = env.step({"type": "call_action", "target_id": "tool_rack", "action_name": "buy_packaging_kit"})
+    buy_kit = env.step(
+        {
+            "type": "call_action",
+            "target_id": "tool_rack",
+            "action_name": "buy",
+            "args": {"item_id": "packaging_kit"},
+        }
+    )
     env.step({"type": "move_to", "target_id": "market"})
     env.step({"type": "move_to", "target_id": "workshop"})
     packed = env.step({"type": "call_action", "target_id": "packaging_table", "action_name": "pack_tea"})
@@ -98,7 +105,14 @@ def test_phase1_trade_notes_support_the_repair_contract_loop():
     env.step({"type": "move_to", "target_id": "plaza"})
     env.step({"type": "move_to", "target_id": "market"})
     env.step({"type": "move_to", "target_id": "supply_shop"})
-    env.step({"type": "call_action", "target_id": "tool_rack", "action_name": "buy_repair_kit"})
+    env.step(
+        {
+            "type": "call_action",
+            "target_id": "tool_rack",
+            "action_name": "buy",
+            "args": {"item_id": "repair_kit"},
+        }
+    )
     env.step({"type": "move_to", "target_id": "market"})
     env.step({"type": "move_to", "target_id": "workshop"})
     repair_result = env.step(
@@ -118,7 +132,14 @@ def test_phase1_spending_sinks_can_convert_cash_into_speed_and_recovery():
     env.reset()
 
     env.step({"type": "move_to", "target_id": "station"})
-    cart_result = env.step({"type": "call_action", "target_id": "express_cart", "action_name": "ride_to_market"})
+    cart_result = env.step(
+        {
+            "type": "call_action",
+            "target_id": "express_cart",
+            "action_name": "ride",
+            "args": {"destination": "market"},
+        }
+    )
     env.step({"type": "move_to", "target_id": "canteen"})
     meal_result = env.step({"type": "call_action", "target_id": "meal_counter", "action_name": "buy_hot_meal"})
 
