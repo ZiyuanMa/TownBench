@@ -26,6 +26,13 @@ def test_call_action_tool_uses_object_id_and_optional_action_args():
     assert parameters[2].annotation == dict[str, Any] | None
 
 
+def test_wait_tool_uses_minutes_parameter():
+    parameters = ACTION_SPECS["wait"].tool.parameters
+
+    assert [parameter.name for parameter in parameters] == ["minutes"]
+    assert parameters[0].annotation is int
+
+
 def test_get_action_cost_prefers_runtime_override(minimal_world_state):
     minimal_world_state.action_costs["move_to"] = ActionCost(time_delta=3, energy_delta=-1, money_delta=2)
 

@@ -5,7 +5,7 @@ from typing import Any, Callable, Literal
 
 from pydantic import BaseModel, Field
 
-from engine.state import WorldState
+from engine.state import ActionCost, WorldState
 
 ActionType = Literal[
     "move_to",
@@ -14,6 +14,7 @@ ActionType = Literal[
     "load_skill",
     "check_status",
     "call_action",
+    "wait",
 ]
 
 
@@ -34,6 +35,7 @@ class ActionExecution:
     success: bool
     message: str
     error_type: str | None = None
+    action_cost_override: ActionCost | None = None
     money_delta: int = 0
     energy_delta: int = 0
     inventory_delta: dict[str, int] | None = None

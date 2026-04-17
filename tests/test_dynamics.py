@@ -199,3 +199,49 @@ def test_higher_priority_disable_keeps_action_closed_even_if_lower_priority_rule
     assert effective_view.object.visible_state == {"open": False}
     assert effective_view.object.callable_actions == {}
     assert tuple(matcher.action_name for matcher in effective_view.disabled_routes) == ("buy_snack",)
+
+
+def test_wait_updates_dynamic_observation_window(minimal_world_state):
+    from runtime.env import TownBenchEnv
+
+    state = minimal_world_state.model_copy(deep=True)
+    state.agent.location_id = "market"
+    state.current_time = (8 * 60) + 45
+    state.objects["counter"].actionable = True
+    state.objects["counter"].action_ids = ["buy_snack"]
+    state.objects["counter"].visible_state = {"open": True, "snack_price": 3}
+    state.objects["counter"].action_effects = {
+        "buy_snack": ObjectActionEffect(message="Bought a snack.", required_money=3, money_delta=-3),
+    }
+    state.dynamic_rules = [
+        DynamicRule(
+            rule_id="midmorning_discount",
+            priority=10,
+            when=DynamicCondition(time_window=TimeWindow(start="09:00", end="10:00")),
+            apply=DynamicRuleApplication(
+                object_overrides={
+                    "counter": ObjectDynamicOverride(
+                        visible_state={"snack_price": 1},
+                        callable_action_overrides=[
+                            CallableActionOverrideRule(
+                                match=CallableActionMatcher(action_name="buy_snack"),
+                                override={
+                                    "required_money": 1,
+                                    "money_delta": -1,
+                                },
+                            )
+                        ],
+                    )
+                }
+            ),
+        ),
+    ]
+    env = TownBenchEnv(state)
+    env.reset()
+
+    result = env.step({"type": "wait", "args": {"minutes": 20}})
+
+    assert result.success is True
+    assert result.observation.current_time == "Day 1, 09:05"
+    counter = next(item for item in result.observation.visible_objects if item.object_id == "counter")
+    assert counter.visible_state == {"open": True, "snack_price": 1}

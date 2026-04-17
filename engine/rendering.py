@@ -180,6 +180,8 @@ def _build_failure_summary(result: StepResult) -> str | None:
         return "This action call is missing required action_args."
     if error_type == "invalid_action_args":
         return "The provided action_args do not match any valid option for this action."
+    if error_type == "invalid_wait_duration":
+        return "The wait duration must be a positive integer within the allowed limit."
     if error_type in {"unknown_target", "unknown_skill", "unknown_location"}:
         return "The id you provided is not recognized in the current environment."
     if error_type == "unreachable_location":
@@ -252,6 +254,13 @@ def _build_failure_next_steps(action: Action, result: StepResult) -> list[str]:
             "Use one of the allowed action_args shown for the object's callable actions.",
             "Avoid inventing argument names or values that were not exposed.",
         )
+    if error_type == "invalid_wait_duration":
+        max_wait_minutes = data.get("max_wait_minutes")
+        if isinstance(max_wait_minutes, int):
+            return _take_steps(
+                f"Retry with a positive integer number of minutes no greater than {max_wait_minutes}.",
+            )
+        return _take_steps("Retry with a positive integer wait duration within the allowed limit.")
 
     if error_type == "unknown_skill":
         return _take_steps(
@@ -416,7 +425,7 @@ def _render_delta_line(result: StepResult) -> str | None:
 def _should_render_observation_snapshot(action: Action, result: StepResult) -> bool:
     if not result.success:
         return False
-    return action.type in {"move_to", "call_action"}
+    return action.type in {"move_to", "call_action", "wait"}
 
 
 def _render_observation_snapshot(observation: Observation) -> list[str]:

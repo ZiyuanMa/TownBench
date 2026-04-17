@@ -44,7 +44,8 @@ def _build_core_instructions() -> str:
         "actions. Read tool outputs carefully, act only from the public context you are given, and prefer actions "
         "that create or preserve economic value. Do not assume the episode ends just because one task or order is "
         "finished. If the environment is still in progress, continue unless there is no clearly profitable next step. "
-        "Before concluding that you are done, check the current status."
+        "When timing matters, you may use wait to let time pass for opening windows or better payouts. Before "
+        "concluding that you are done, check the current status."
     )
 
 

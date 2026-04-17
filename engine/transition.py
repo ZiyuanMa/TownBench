@@ -10,6 +10,7 @@ from engine.actions import Action, ActionExecution, apply_action_costs, get_acti
 from engine.observation import Observation, project_observation, summarize_observation
 from engine.results import StepResult
 from engine.rules import (
+    apply_explicit_action_cost,
     apply_world_rules,
     evaluate_termination,
     merge_inventory_deltas,
@@ -115,7 +116,11 @@ class TransitionEngine:
         if not execution.success:
             return original_state, execution, effects
 
-        action_cost = get_action_cost(original_state, action.type)
+        action_cost = self._resolve_action_cost(
+            state=original_state,
+            action=action,
+            execution=execution,
+        )
         validation_error = self._validate_step_commit(
             state=original_state,
             execution=execution,
@@ -129,7 +134,7 @@ class TransitionEngine:
                 result_data={"error_type": validation_error[0]},
             ), StepEffects()
 
-        applied_cost = apply_action_costs(working_state, action.type)
+        applied_cost = apply_explicit_action_cost(working_state, action_cost)
         self._commit_validated_inventory(
             original_state=original_state,
             working_state=working_state,
@@ -142,6 +147,21 @@ class TransitionEngine:
         effects.inventory_delta = merge_inventory_deltas(effects.inventory_delta, applied_cost.inventory_delta)
         effects.triggered_events = apply_world_rules(working_state)
         return working_state, execution, effects
+
+    def _resolve_action_cost(
+        self,
+        *,
+        state: WorldState,
+        action: Action,
+        execution: ActionExecution,
+    ) -> ActionCost:
+        if execution.action_cost_override is not None:
+            if action.type == "wait":
+                merged_cost = get_action_cost(state, action.type)
+                merged_cost.time_delta = execution.action_cost_override.time_delta
+                return merged_cost
+            return execution.action_cost_override.model_copy(deep=True)
+        return get_action_cost(state, action.type)
 
     def _validate_step_commit(
         self,

@@ -26,3 +26,17 @@ def test_env_writes_trace_after_step(minimal_world_state):
     assert len(trace) == 1
     assert trace[0].step_id == 1
     assert trace[0].normalized_action["type"] == "check_status"
+
+
+def test_wait_counts_as_a_normal_step_for_done_state(minimal_world_state):
+    state = minimal_world_state.model_copy(deep=True)
+    state.termination_config.max_steps = 1
+    env = TownBenchEnv(state)
+    env.reset()
+
+    result = env.step({"type": "wait", "args": {"minutes": 15}})
+
+    assert result.success is True
+    assert result.done is True
+    assert result.termination_reason == "max_steps_reached"
+    assert env.is_done() is True

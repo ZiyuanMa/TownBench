@@ -73,6 +73,63 @@ def test_non_snapshot_tools_keep_their_existing_payloads(minimal_world_state):
     assert load_skill.data["skill_id"] == "safety_basics"
 
 
+def test_wait_advances_time_without_other_state_changes(minimal_world_state):
+    env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
+    env.reset()
+
+    result = env.step({"type": "wait", "args": {"minutes": 30}})
+
+    assert result.success is True
+    assert result.time_delta == 30
+    assert result.money_delta == 0
+    assert result.energy_delta == 0
+    assert env.state.current_time == (8 * 60) + 30
+    assert env.state.agent.location_id == "plaza"
+    assert env.state.agent.money == 20
+    assert env.state.agent.energy == 100
+    assert result.observation.current_time == "Day 1, 08:30"
+    assert env.get_trace()[0].success is True
+
+
+def test_wait_rejects_invalid_durations(minimal_world_state):
+    env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
+    env.reset()
+
+    zero_result = env.step({"type": "wait", "args": {"minutes": 0}})
+    long_result = env.step({"type": "wait", "args": {"minutes": 241}})
+
+    assert zero_result.success is False
+    assert zero_result.warnings == ["invalid_wait_duration"]
+    assert long_result.success is False
+    assert long_result.warnings == ["invalid_wait_duration"]
+    assert env.state.current_time == 8 * 60
+
+
+def test_wait_preserves_scenario_defined_non_time_costs(minimal_world_state):
+    state = minimal_world_state.model_copy(deep=True)
+    state.agent.inventory = {"apple": 1}
+    state.action_costs["wait"] = ActionCost(
+        time_delta=5,
+        money_delta=-2,
+        energy_delta=-7,
+        inventory_delta={"apple": -1},
+    )
+    env = TownBenchEnv(state)
+    env.reset()
+
+    result = env.step({"type": "wait", "args": {"minutes": 30}})
+
+    assert result.success is True
+    assert result.time_delta == 30
+    assert result.money_delta == -2
+    assert result.energy_delta == -7
+    assert result.inventory_delta == {"apple": -1}
+    assert env.state.current_time == (8 * 60) + 30
+    assert env.state.agent.money == 18
+    assert env.state.agent.energy == 93
+    assert env.state.agent.inventory == {}
+
+
 def test_move_to_allows_same_area_locations_without_explicit_links(minimal_world_state):
     state = minimal_world_state.model_copy(deep=True)
     state.areas = {

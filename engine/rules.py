@@ -21,6 +21,10 @@ def apply_state_delta(state: WorldState, delta: ActionCost) -> ActionCost:
     return applied
 
 
+def apply_explicit_action_cost(state: WorldState, cost: ActionCost) -> ActionCost:
+    return apply_state_delta(state, cost)
+
+
 def merge_inventory_deltas(primary: dict[str, int], secondary: dict[str, int]) -> dict[str, int]:
     merged = dict(primary)
     for item_id, delta in secondary.items():

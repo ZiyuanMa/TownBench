@@ -20,6 +20,7 @@ def _success(
     *,
     result_data: dict[str, Any] | None = None,
     payload_builder: PayloadBuilder | None = None,
+    action_cost_override: ActionCost | None = None,
     money_delta: int = 0,
     energy_delta: int = 0,
     inventory_delta: dict[str, int] | None = None,
@@ -29,6 +30,7 @@ def _success(
         success=True,
         message=message,
         payload_builder=payload_builder,
+        action_cost_override=action_cost_override.model_copy(deep=True) if action_cost_override else None,
         money_delta=money_delta,
         energy_delta=energy_delta,
         inventory_delta=dict(inventory_delta or {}),
@@ -49,6 +51,27 @@ def _handle_check_status(state: WorldState, action: Action) -> ActionExecution:
     return _success(
         "Status checked.",
         payload_builder=lambda current_state: {"agent_status": _serialize_agent_status(current_state)},
+    )
+
+
+def _handle_wait(state: WorldState, action: Action) -> ActionExecution:
+    del state
+    minutes = action.args.get("minutes")
+    if minutes is None:
+        return _failure(
+            "missing_action_args",
+            "wait requires `minutes` in action args.",
+            result_data={"requested_action_args": dict(action.args), "missing_action_arg_names": ["minutes"]},
+        )
+    if not isinstance(minutes, int) or isinstance(minutes, bool) or minutes <= 0 or minutes > 240:
+        return _failure(
+            "invalid_wait_duration",
+            "wait requires a positive integer number of minutes up to 240.",
+            result_data={"requested_action_args": dict(action.args), "max_wait_minutes": 240},
+        )
+    return _success(
+        f"Waited for {minutes} minutes.",
+        action_cost_override=ActionCost(time_delta=minutes),
     )
 
 
