@@ -41,12 +41,75 @@ def test_load_scenario_builds_world_state():
     assert state.dynamic_rules == []
 
 
-def test_load_phase3_scenario_builds_dynamic_rules():
-    scenario_path = Path(__file__).resolve().parents[1] / "scenarios" / "phase3_town" / "scenario.yaml"
+def test_load_scenario_builds_dynamic_rules_from_authored_yaml(tmp_path):
+    scenario_file = tmp_path / "dynamic_scenario.yaml"
+    scenario_file.write_text(
+        """
+scenario_id: dynamic_demo
+initial_agent_state:
+  location_id: plaza
+locations:
+  - location_id: plaza
+    name: Plaza
+    description: A plaza.
+objects:
+  - object_id: supply_counter
+    name: Supply Counter
+    object_type: counter
+    location_id: plaza
+    summary: A counter.
+    visible_state:
+      open: true
+    actionable: true
+    callable_actions:
+      buy:
+        arguments:
+          item_id:
+            options: [packaging_sleeve]
+        routes:
+          - match:
+              item_id: packaging_sleeve
+            effect:
+              message: Bought one packaging sleeve.
+              money_delta: -1
+              inventory_delta:
+                packaging_sleeve: 1
+skills: []
+dynamic_rules:
+  - rule_id: supply_counter_closed_early
+    when:
+      time_window:
+        start: "17:00"
+        end: "08:30"
+    apply:
+      object_overrides:
+        supply_counter:
+          visible_state:
+            open: false
+          disabled_callable_actions:
+            - action_name: buy
+  - rule_id: goods_buyer_morning_surge
+    when:
+      time_window:
+        start: "08:30"
+        end: "10:30"
+  - rule_id: meal_counter_lunch_rush
+    when:
+      time_window:
+        start: "11:30"
+        end: "12:30"
+  - rule_id: pickup_clerk_closed
+    when:
+      time_window:
+        start: "17:00"
+        end: "09:00"
+""".strip(),
+        encoding="utf-8",
+    )
 
-    state = load_scenario(scenario_path)
+    state = load_scenario(scenario_file)
 
-    assert state.scenario_id == "phase3_town"
+    assert state.scenario_id == "dynamic_demo"
     assert [rule.rule_id for rule in state.dynamic_rules] == [
         "supply_counter_closed_early",
         "goods_buyer_morning_surge",
@@ -911,8 +974,8 @@ objects:
     assert effect.set_world_flags == {"locker_upgraded": True}
 
 
-def test_phase2_loader_authors_locker_upgrade_as_one_time_gated_capacity_increase():
-    scenario_path = Path(__file__).resolve().parents[1] / "scenarios" / "phase2_town" / "scenario.yaml"
+def test_multi_area_loader_authors_locker_upgrade_as_one_time_gated_capacity_increase():
+    scenario_path = Path(__file__).resolve().parents[1] / "scenarios" / "multi_area_town" / "scenario.yaml"
 
     state = load_scenario(scenario_path)
     effect = state.objects["locker_desk"].action_effects["buy_locker_upgrade"]

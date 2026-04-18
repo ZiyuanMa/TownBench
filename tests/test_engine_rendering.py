@@ -1,7 +1,18 @@
 from pathlib import Path
 
 from engine.rendering import render_initial_observation, render_tool_result
-from engine.state import ObjectActionEffect
+from engine.state import (
+    CallableActionArgumentSpec,
+    CallableActionDefinition,
+    CallableActionMatcher,
+    CallableActionRoute,
+    DynamicCondition,
+    DynamicRule,
+    DynamicRuleApplication,
+    ObjectActionEffect,
+    ObjectDynamicOverride,
+    TimeWindow,
+)
 from runtime.env import TownBenchEnv
 from scenario.loader import load_scenario
 
@@ -38,7 +49,7 @@ def test_render_tool_result_success_includes_snapshot():
 
 
 def test_render_snapshot_shows_parameterized_callable_actions():
-    env = _load_env("phase2_town")
+    env = _load_env("multi_area_town")
     env.reset()
     env.step({"type": "move_to", "target_id": "market"})
 
@@ -109,26 +120,54 @@ def test_render_tool_result_surfaces_missing_inventory_context(minimal_world_sta
     assert "Current inventory: none" in rendered
 
 
-def test_render_tool_result_surfaces_temporary_unavailability():
-    env = _load_env("phase3_town")
+def test_render_tool_result_surfaces_temporary_unavailability(minimal_world_state):
+    state = minimal_world_state.model_copy(deep=True)
+    state.agent.location_id = "market"
+    state.objects["counter"].actionable = True
+    state.objects["counter"].callable_actions = {
+        "buy": CallableActionDefinition(
+            arguments={
+                "item_id": CallableActionArgumentSpec(options=["snack"]),
+            },
+            routes=[
+                CallableActionRoute(
+                    match={"item_id": "snack"},
+                    effect=ObjectActionEffect(message="Bought a snack."),
+                )
+            ],
+        )
+    }
+    state.dynamic_rules = [
+        DynamicRule(
+            rule_id="counter_closed_early",
+            when=DynamicCondition(time_window=TimeWindow(start="17:00", end="08:30")),
+            apply=DynamicRuleApplication(
+                object_overrides={
+                    "counter": ObjectDynamicOverride(
+                        visible_state={"open": False},
+                        disabled_callable_actions=[CallableActionMatcher(action_name="buy")],
+                    )
+                }
+            ),
+        )
+    ]
+    env = TownBenchEnv(state)
     env.reset()
-    env.step({"type": "move_to", "target_id": "market"})
-    env.step({"type": "move_to", "target_id": "supply_shop"})
 
     result = env.step(
         {
             "type": "call_action",
-            "target_id": "supply_counter",
+            "target_id": "counter",
             "action_name": "buy",
-            "args": {"item_id": "packaging_sleeve"},
+            "args": {"item_id": "snack"},
         }
     )
     rendered = render_tool_result(
         {
             "type": "call_action",
-            "target_id": "supply_counter",
+            "target_id": "counter",
             "action_name": "buy",
-            "args": {"item_id": "packaging_sleeve"},
+            "args": {"item_id": "snack"},
         },
         result,
     )

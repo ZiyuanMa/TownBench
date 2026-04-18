@@ -1,7 +1,0 @@
-Production district operating summary:
-
-- Tea loop: buy `tea_bundle`, `fuel_canister`, and `packaging_sleeve`, then brew, pack, and sell for the best steady margin.
-- Meal loop: buy `meal_ingredients`, assemble a `meal_box`, and deliver it to the canteen when cash is running low.
-- Repair loop: buy one `repair_part`, finish the job at the bench, and cash out the signed ticket at the depot.
-- Carrying space is limited at the start. The storage room sells one locker upgrade if you can afford it.
-- Dusty trinkets from the bargain bin are cheap but can trap your working capital in bad inventory.

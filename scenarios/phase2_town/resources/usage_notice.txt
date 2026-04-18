@@ -1,7 +1,0 @@
-Fuel usage notice:
-
-- Each tea batch consumes exactly 1 `fuel_canister`
-- Packed tea also needs 1 `packaging_sleeve`
-- Fresh fuel is sold here for 2 coins
-
-Tea margins stay healthy only if you remember to replenish both fuel and sleeves.
