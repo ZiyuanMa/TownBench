@@ -3,6 +3,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+from engine.state import ConditionNode, TimeWindow
 from runtime.env import TownBenchEnv
 from scenario.loader import load_scenario
 
@@ -361,6 +362,139 @@ dynamic_rules:
 
     with pytest.raises(ValueError, match="enables unknown callable action"):
         load_scenario(scenario_file)
+
+
+def test_loader_accepts_condition_dsl_for_dynamic_and_event_rules(tmp_path):
+    scenario_file = tmp_path / "condition_scenario.yaml"
+    scenario_file.write_text(
+        """
+scenario_id: condition_demo
+initial_agent_state:
+  location_id: plaza
+  inventory:
+    repair_part: 1
+locations:
+  - location_id: plaza
+    name: Plaza
+    description: A plaza.
+objects:
+  - object_id: stall
+    name: Stall
+    object_type: stall
+    location_id: plaza
+    summary: A simple stall.
+dynamic_rules:
+  - rule_id: morning_promo
+    when:
+      all:
+        - time_window:
+            start: "08:00"
+            end: "09:00"
+        - location_id: plaza
+        - has_inventory:
+            repair_part: 1
+    apply:
+      object_overrides:
+        stall:
+          visible_state:
+            promo: true
+event_rules:
+  - event_id: rich_notice
+    when:
+      any:
+        - world_flags:
+            rich: true
+        - money_at_least: 5
+    set_world_flags:
+      notice_ready: true
+""".strip(),
+        encoding="utf-8",
+    )
+
+    state = load_scenario(scenario_file)
+
+    assert state.dynamic_rules[0].when.kind == "all"
+    assert [child.kind for child in state.dynamic_rules[0].when.children] == [
+        "time_window",
+        "location_id",
+        "has_inventory",
+    ]
+    assert state.event_rules[0].when.kind == "any"
+    assert [child.kind for child in state.event_rules[0].when.children] == [
+        "world_flags",
+        "money_at_least",
+    ]
+
+
+def test_loader_rejects_invalid_condition_nodes(tmp_path):
+    scenario_file = tmp_path / "bad_condition.yaml"
+    scenario_file.write_text(
+        """
+scenario_id: broken_condition
+initial_agent_state:
+  location_id: plaza
+locations:
+  - location_id: plaza
+    name: Plaza
+    description: A plaza.
+objects: []
+dynamic_rules:
+  - rule_id: bad_condition
+    when:
+      all:
+        - location_id: plaza
+          money_at_least: 5
+    apply:
+      object_overrides: {}
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValidationError, match="exactly one key"):
+        load_scenario(scenario_file)
+
+
+def test_loader_rejects_condition_rules_with_unknown_locations(tmp_path):
+    scenario_file = tmp_path / "bad_condition_location.yaml"
+    scenario_file.write_text(
+        """
+scenario_id: broken_condition_location
+initial_agent_state:
+  location_id: plaza
+locations:
+  - location_id: plaza
+    name: Plaza
+    description: A plaza.
+objects: []
+event_rules:
+  - event_id: lost_event
+    when:
+      location_id: market
+    set_world_flags:
+      found: true
+""".strip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="references unknown location `market`"):
+        load_scenario(scenario_file)
+
+
+def test_condition_node_rejects_extra_payloads_for_time_window_kind():
+    with pytest.raises(ValidationError, match="must not declare payload field\\(s\\): location_id"):
+        ConditionNode(
+            kind="time_window",
+            time_window=TimeWindow(start="09:00", end="10:00"),
+            location_id="market",
+        )
+
+
+def test_condition_node_allows_empty_world_flags_and_inventory_payloads():
+    world_flags_condition = ConditionNode(kind="world_flags", world_flags={})
+    inventory_condition = ConditionNode(kind="has_inventory", has_inventory={})
+
+    assert world_flags_condition.world_flags == {}
+    assert inventory_condition.has_inventory == {}
 
 
 def test_loader_parses_areas_and_location_area_ids(tmp_path):

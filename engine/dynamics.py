@@ -8,12 +8,11 @@ from engine.callable_actions import (
     filter_callable_action_definitions,
     resolve_callable_action,
 )
-from engine.rules import minute_of_day
+from engine.rules import matches_condition, matches_time_window
 from engine.state import (
     CallableActionMatcher,
     DynamicRule,
     ObjectActionEffect,
-    TimeWindow,
     WorldObject,
     WorldState,
 )
@@ -31,10 +30,14 @@ def resolve_active_dynamic_rules(
     *,
     at_time: int | None = None,
 ) -> list[DynamicRule]:
+    evaluation_state = state
+    if at_time is not None and at_time != state.current_time:
+        evaluation_state = state.model_copy(update={"current_time": at_time})
+
     active_rules = [
         rule
         for rule in state.dynamic_rules
-        if matches_time_window((state.current_time if at_time is None else at_time), rule.when.time_window)
+        if matches_condition(evaluation_state, rule.when)
     ]
     return sorted(active_rules, key=lambda rule: rule.priority)
 
@@ -121,26 +124,3 @@ def build_effective_action_effect(
     if resolved_action is None or isinstance(resolved_action, CallableActionResolutionError):
         return None
     return resolved_action.effect
-
-
-def matches_time_window(current_time: int, time_window: TimeWindow) -> bool:
-    current_minute_of_day = minute_of_day(current_time)
-    start = parse_clock_time(time_window.start)
-    end = parse_clock_time(time_window.end)
-
-    if start == end:
-        return True
-    if start < end:
-        return start <= current_minute_of_day < end
-    return current_minute_of_day >= start or current_minute_of_day < end
-
-
-def parse_clock_time(value: str) -> int:
-    parts = value.strip().split(":")
-    if len(parts) != 2:
-        raise ValueError(f"Unsupported clock time format: `{value}`.")
-    hour = int(parts[0])
-    minute = int(parts[1])
-    if hour < 0 or hour >= 24 or minute < 0 or minute >= 60:
-        raise ValueError(f"Unsupported clock time format: `{value}`.")
-    return hour * 60 + minute

@@ -7,7 +7,7 @@ import yaml
 
 from engine.callable_actions import get_callable_action_definitions, matches_callable_action_matcher
 from engine.rules import inventory_capacity, inventory_load, parse_time_label
-from engine.state import Area, CallableActionMatcher, Location, Skill, WorldObject, WorldState
+from engine.state import Area, CallableActionMatcher, ConditionNode, Location, Skill, WorldObject, WorldState
 from scenario.schema import ScenarioConfig, ScenarioObjectSource
 
 
@@ -297,6 +297,11 @@ def _validate_event_rules(
                     )
 
     for rule in config.dynamic_rules:
+        _validate_condition_references(
+            rule.when,
+            known_locations=known_locations,
+            rule_label=f"Dynamic rule `{rule.rule_id}`",
+        )
         for object_id, override in rule.apply.object_overrides.items():
             world_object = objects.get(object_id)
             if world_object is None:
@@ -328,6 +333,11 @@ def _validate_event_rules(
                 )
 
     for rule in config.event_rules:
+        _validate_condition_references(
+            rule.when,
+            known_locations=known_locations,
+            rule_label=f"Event rule `{rule.event_id}`",
+        )
         unknown_objects = sorted(set(rule.set_object_visible_state) - known_objects)
         if unknown_objects:
             object_list = ", ".join(unknown_objects)
@@ -382,3 +392,22 @@ def _validate_callable_action_matcher(
         raise ValueError(
             f"Dynamic rule `{rule_id}` matcher for `{object_id}` does not match any callable action route."
         )
+
+
+def _validate_condition_references(
+    condition: ConditionNode,
+    *,
+    known_locations: set[str],
+    rule_label: str,
+) -> None:
+    if condition.kind in {"all", "any", "not"}:
+        for child in condition.children:
+            _validate_condition_references(
+                child,
+                known_locations=known_locations,
+                rule_label=rule_label,
+            )
+        return
+
+    if condition.kind == "location_id" and condition.location_id not in known_locations:
+        raise ValueError(f"{rule_label} references unknown location `{condition.location_id}`.")

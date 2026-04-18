@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 CLOCK_TIME_PATTERN = re.compile(r"^\d{2}:\d{2}$")
 
@@ -21,10 +21,21 @@ class WorldEventRule(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     event_id: str
-    required_world_flags: dict[str, bool] = Field(default_factory=dict)
+    when: "ConditionNode" = Field(default_factory=lambda: ConditionNode(kind="world_flags"))
     set_world_flags: dict[str, bool] = Field(default_factory=dict)
     set_object_visible_state: dict[str, dict[str, Any]] = Field(default_factory=dict)
     trigger_once: bool = True
+
+    @model_validator(mode="before")
+    @classmethod
+    def migrate_required_world_flags(cls, data: Any) -> Any:
+        if not isinstance(data, dict) or "required_world_flags" not in data:
+            return data
+        if "when" in data:
+            raise ValueError("WorldEventRule must not declare both `when` and `required_world_flags`.")
+        migrated = dict(data)
+        migrated["when"] = {"world_flags": migrated.pop("required_world_flags")}
+        return migrated
 
 
 class TimeWindow(BaseModel):
@@ -45,10 +56,163 @@ class TimeWindow(BaseModel):
         return normalized
 
 
-class DynamicCondition(BaseModel):
+ConditionKind = Literal[
+    "all",
+    "any",
+    "not",
+    "time_window",
+    "world_flags",
+    "location_id",
+    "has_inventory",
+    "money_at_least",
+    "energy_at_least",
+]
+
+
+class ConditionNode(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    time_window: TimeWindow
+    kind: ConditionKind
+    children: list["ConditionNode"] = Field(default_factory=list)
+    time_window: TimeWindow | None = None
+    world_flags: dict[str, bool] | None = None
+    location_id: str | None = None
+    has_inventory: dict[str, int] | None = None
+    threshold: int | None = None
+
+    _ALLOWED_PAYLOADS_BY_KIND: dict[str, set[str]] = {
+        "all": set(),
+        "any": set(),
+        "not": set(),
+        "time_window": {"time_window"},
+        "world_flags": {"world_flags"},
+        "location_id": {"location_id"},
+        "has_inventory": {"has_inventory"},
+        "money_at_least": {"threshold"},
+        "energy_at_least": {"threshold"},
+    }
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_authored_condition(cls, data: Any) -> Any:
+        if isinstance(data, cls):
+            return data
+        if not isinstance(data, dict):
+            raise ValueError("Condition nodes must be mappings.")
+        if "kind" in data:
+            return data
+        if len(data) != 1:
+            raise ValueError("Condition nodes must declare exactly one key.")
+
+        key, payload = next(iter(data.items()))
+        if key in {"all", "any"}:
+            if not isinstance(payload, list):
+                raise ValueError(f"Condition node `{key}` must wrap a list.")
+            return {"kind": key, "children": payload}
+        if key == "not":
+            if isinstance(payload, list):
+                raise ValueError("Condition node `not` must wrap exactly one child node.")
+            return {"kind": key, "children": [payload]}
+        if key == "time_window":
+            return {"kind": key, "time_window": payload}
+        if key == "world_flags":
+            return {"kind": key, "world_flags": payload}
+        if key == "location_id":
+            return {"kind": key, "location_id": payload}
+        if key == "has_inventory":
+            return {"kind": key, "has_inventory": payload}
+        if key in {"money_at_least", "energy_at_least"}:
+            return {"kind": key, "threshold": payload}
+        raise ValueError(f"Unsupported condition node `{key}`.")
+
+    @field_validator("threshold")
+    @classmethod
+    def validate_threshold(cls, value: int | None) -> int | None:
+        if value is not None and isinstance(value, bool):
+            raise ValueError("Condition thresholds must be integers, not booleans.")
+        return value
+
+    @field_validator("location_id")
+    @classmethod
+    def validate_location_id(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Condition `location_id` must be a non-empty string.")
+        return normalized
+
+    @field_validator("has_inventory")
+    @classmethod
+    def validate_has_inventory(cls, value: dict[str, int] | None) -> dict[str, int] | None:
+        if value is None:
+            return value
+        normalized: dict[str, int] = {}
+        for item_id, quantity in value.items():
+            if isinstance(quantity, bool):
+                raise ValueError("Condition `has_inventory` quantities must be integers, not booleans.")
+            if quantity < 0:
+                raise ValueError("Condition `has_inventory` quantities must be non-negative.")
+            normalized[item_id] = quantity
+        return normalized
+
+    def _present_payload_fields(self) -> set[str]:
+        present: set[str] = set()
+        if self.time_window is not None:
+            present.add("time_window")
+        if self.world_flags is not None:
+            present.add("world_flags")
+        if self.location_id is not None:
+            present.add("location_id")
+        if self.has_inventory is not None:
+            present.add("has_inventory")
+        if self.threshold is not None:
+            present.add("threshold")
+        return present
+
+    def _missing_required_payloads(self) -> set[str]:
+        if self.kind == "time_window" and self.time_window is None:
+            return {"time_window"}
+        if self.kind == "location_id" and self.location_id is None:
+            return {"location_id"}
+        if self.kind in {"money_at_least", "energy_at_least"} and self.threshold is None:
+            return {"threshold"}
+        return set()
+
+    @model_validator(mode="after")
+    def validate_shape(self) -> "ConditionNode":
+        if self.kind == "not":
+            if len(self.children) != 1:
+                raise ValueError("Condition node `not` must wrap exactly one child node.")
+        elif self.kind in {"all", "any"}:
+            pass
+        else:
+            if self.children:
+                raise ValueError(f"Atomic condition node `{self.kind}` must not declare children.")
+
+        allowed_payloads = self._ALLOWED_PAYLOADS_BY_KIND.get(self.kind)
+        if allowed_payloads is None:
+            raise ValueError(f"Unsupported condition node kind `{self.kind}`.")
+
+        present_payloads = self._present_payload_fields()
+        extra_payloads = present_payloads - allowed_payloads
+        if extra_payloads:
+            extra_list = ", ".join(sorted(extra_payloads))
+            raise ValueError(
+                f"Condition node `{self.kind}` must not declare payload field(s): {extra_list}."
+            )
+
+        missing_payloads = self._missing_required_payloads()
+        if missing_payloads:
+            missing_list = ", ".join(sorted(missing_payloads))
+            raise ValueError(
+                f"Condition node `{self.kind}` requires payload field(s): {missing_list}."
+            )
+        return self
+
+
+class DynamicCondition(ConditionNode):
+    pass
 
 
 class ActionEffectOverride(BaseModel):
@@ -98,7 +262,7 @@ class DynamicRule(BaseModel):
 
     rule_id: str
     priority: int = 0
-    when: DynamicCondition
+    when: ConditionNode
     apply: DynamicRuleApplication = Field(default_factory=DynamicRuleApplication)
 
 
@@ -222,3 +386,8 @@ class WorldState(BaseModel):
     triggered_event_ids: list[str] = Field(default_factory=list)
     scenario_id: str = "memory_scenario"
     seed: int | None = None
+
+
+WorldEventRule.model_rebuild()
+ConditionNode.model_rebuild()
+DynamicCondition.model_rebuild()

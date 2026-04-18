@@ -140,9 +140,10 @@ action_costs:
 
 event_rules:
   - event_id: tea_ready_notice
-    required_world_flags:
-      tea_ready: true
-      order_logged: false
+    when:
+      world_flags:
+        tea_ready: true
+        order_logged: false
     set_world_flags:
       tea_announced: true
     set_object_visible_state:
@@ -151,8 +152,9 @@ event_rules:
     trigger_once: false
 
   - event_id: order_paid_notice
-    required_world_flags:
-      order_logged: true
+    when:
+      world_flags:
+        order_logged: true
     set_world_flags:
       tea_ready: false
       order_logged: false

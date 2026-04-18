@@ -396,26 +396,29 @@ action_costs:
 
 event_rules:
   - event_id: delivery_open_notice
-    required_world_flags:
-      delivery_job_open: true
-      delivery_job_active: false
+    when:
+      world_flags:
+        delivery_job_open: true
+        delivery_job_active: false
     set_object_visible_state:
       job_board:
         latest_job: "Parcel run to the station pays 5 coins."
     trigger_once: false
 
   - event_id: delivery_active_notice
-    required_world_flags:
-      delivery_job_open: false
-      delivery_job_active: true
+    when:
+      world_flags:
+        delivery_job_open: false
+        delivery_job_active: true
     set_object_visible_state:
       job_board:
         latest_job: "Current parcel is already in transit."
     trigger_once: false
 
   - event_id: packaging_kit_notice
-    required_world_flags:
-      packaging_kit_owned: true
+    when:
+      world_flags:
+        packaging_kit_owned: true
     set_object_visible_state:
       tool_rack:
         packaging_kit_status: sold_to_current_agent

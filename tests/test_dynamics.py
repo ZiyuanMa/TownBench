@@ -245,3 +245,43 @@ def test_wait_updates_dynamic_observation_window(minimal_world_state):
     assert result.observation.current_time == "Day 1, 09:05"
     counter = next(item for item in result.observation.visible_objects if item.object_id == "counter")
     assert counter.visible_state == {"open": True, "snack_price": 1}
+
+
+def test_dynamic_rule_can_combine_time_location_and_inventory_conditions(minimal_world_state):
+    state = minimal_world_state.model_copy(deep=True)
+    state.agent.location_id = "market"
+    state.agent.inventory = {"apple": 1}
+    state.objects["counter"].actionable = True
+    state.objects["counter"].action_ids = ["buy_snack"]
+    state.objects["counter"].visible_state = {"promo": False}
+    state.objects["counter"].action_effects = {
+        "buy_snack": ObjectActionEffect(message="Bought a snack."),
+    }
+    state.dynamic_rules = [
+        DynamicRule(
+            rule_id="market_inventory_promo",
+            when={
+                "all": [
+                    {"time_window": {"start": "09:00", "end": "10:00"}},
+                    {"location_id": "market"},
+                    {"has_inventory": {"apple": 1}},
+                ]
+            },
+            apply=DynamicRuleApplication(
+                object_overrides={
+                    "counter": ObjectDynamicOverride(
+                        visible_state={"promo": True},
+                    )
+                }
+            ),
+        )
+    ]
+
+    active_view = build_effective_object_view(state, "counter", at_time=(9 * 60) + 5)
+    assert active_view is not None
+    assert active_view.object.visible_state == {"promo": True}
+
+    state.agent.inventory = {}
+    inactive_view = build_effective_object_view(state, "counter", at_time=(9 * 60) + 5)
+    assert inactive_view is not None
+    assert inactive_view.object.visible_state == {"promo": False}

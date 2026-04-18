@@ -686,6 +686,39 @@ def test_world_rules_and_success_termination_apply_after_action(minimal_world_st
     assert env.state.objects["counter"].visible_state["receipt_ready"] is True
 
 
+def test_event_rules_support_condition_dsl_composition(minimal_world_state):
+    env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
+    env.reset()
+    env.state.objects["counter"].actionable = True
+    env.state.objects["counter"].action_ids = ["buy_apple"]
+    env.state.objects["counter"].action_effects = {
+        "buy_apple": ObjectActionEffect(
+            message="Purchased an apple.",
+            set_world_flags={"apple_bought": True},
+        )
+    }
+    env.state.event_rules = [
+        WorldEventRule(
+            event_id="market_notice",
+            when={
+                "all": [
+                    {"world_flags": {"apple_bought": True}},
+                    {"location_id": "market"},
+                ]
+            },
+            set_world_flags={"market_notice_ready": True},
+            trigger_once=True,
+        )
+    ]
+
+    env.step({"type": "move_to", "target_id": "market"})
+    result = env.step({"type": "call_action", "target_id": "counter", "action_name": "buy_apple"})
+
+    assert result.success is True
+    assert result.triggered_events == ["market_notice"]
+    assert env.state.world_flags["market_notice_ready"] is True
+
+
 def test_call_action_can_apply_money_delta_and_reports_net_step_delta(minimal_world_state):
     env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
     env.reset()

@@ -3,9 +3,20 @@ from __future__ import annotations
 import re
 from collections.abc import Mapping
 
-from engine.state import ActionCost, TerminationConfig, WorldState
+from pydantic import BaseModel, ConfigDict, Field
+
+from engine.state import ActionCost, ConditionNode, TerminationConfig, TimeWindow, WorldState
 
 TIME_PATTERN = re.compile(r"^Day (?P<day>\d+), (?P<hour>\d{2}):(?P<minute>\d{2})$")
+
+
+class RuleEvaluationContext(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    object_id: str | None = None
+    action_name: str | None = None
+    action_args: dict[str, str] = Field(default_factory=dict)
+    step_id: int | None = None
 
 
 def apply_state_delta(state: WorldState, delta: ActionCost) -> ActionCost:
@@ -95,7 +106,7 @@ def apply_world_rules(state: WorldState) -> list[str]:
     active_event_ids = set(state.active_event_ids)
 
     for rule in state.event_rules:
-        matches = matches_world_flags(state.world_flags, rule.required_world_flags)
+        matches = matches_condition(state, rule.when)
         if rule.trigger_once and rule.event_id in triggered_event_ids:
             continue
         if not matches:
@@ -118,7 +129,7 @@ def apply_world_rules(state: WorldState) -> list[str]:
     state.active_event_ids = [
         rule.event_id
         for rule in state.event_rules
-        if matches_world_flags(state.world_flags, rule.required_world_flags)
+        if matches_condition(state, rule.when)
     ]
     return triggered_events
 
@@ -177,6 +188,66 @@ def minute_of_day(total_minutes: int) -> int:
     if total_minutes < 0:
         raise ValueError(f"Time must be non-negative: `{total_minutes}`.")
     return total_minutes % (24 * 60)
+
+
+def parse_clock_time(value: str) -> int:
+    parts = value.strip().split(":")
+    if len(parts) != 2:
+        raise ValueError(f"Unsupported clock time format: `{value}`.")
+    hour = int(parts[0])
+    minute = int(parts[1])
+    if hour < 0 or hour >= 24 or minute < 0 or minute >= 60:
+        raise ValueError(f"Unsupported clock time format: `{value}`.")
+    return hour * 60 + minute
+
+
+def matches_time_window(current_time: int, time_window: TimeWindow) -> bool:
+    current_minute_of_day = minute_of_day(current_time)
+    start = parse_clock_time(time_window.start)
+    end = parse_clock_time(time_window.end)
+
+    if start == end:
+        return True
+    if start < end:
+        return start <= current_minute_of_day < end
+    return current_minute_of_day >= start or current_minute_of_day < end
+
+
+def matches_condition(
+    state: WorldState,
+    condition: ConditionNode,
+    *,
+    context: RuleEvaluationContext | None = None,
+) -> bool:
+    _ = context
+    if condition.kind == "all":
+        return all(matches_condition(state, child, context=context) for child in condition.children)
+    if condition.kind == "any":
+        return any(matches_condition(state, child, context=context) for child in condition.children)
+    if condition.kind == "not":
+        return not matches_condition(state, condition.children[0], context=context)
+    return matches_atomic_condition(state, condition)
+
+
+def matches_atomic_condition(state: WorldState, condition: ConditionNode) -> bool:
+    if condition.kind == "time_window":
+        if condition.time_window is None:
+            return False
+        return matches_time_window(state.current_time, condition.time_window)
+    if condition.kind == "world_flags":
+        return matches_world_flags(state.world_flags, condition.world_flags or {})
+    if condition.kind == "location_id":
+        return state.agent.location_id == condition.location_id
+    if condition.kind == "has_inventory":
+        return all(
+            state.agent.inventory.get(item_id, 0) >= required_quantity
+            for item_id, required_quantity in (condition.has_inventory or {}).items()
+        )
+    if condition.kind == "money_at_least":
+        return state.agent.money >= (condition.threshold or 0)
+    if condition.kind == "energy_at_least":
+        return state.agent.energy >= (condition.threshold or 0)
+    raise ValueError(f"Unsupported condition node kind `{condition.kind}`.")
 
 
 def matches_world_flags(current_flags: dict[str, bool], required_flags: dict[str, bool]) -> bool:
