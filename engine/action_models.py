@@ -11,7 +11,6 @@ ActionType = Literal[
     "move_to",
     "inspect",
     "open_resource",
-    "load_skill",
     "check_status",
     "call_action",
     "wait",

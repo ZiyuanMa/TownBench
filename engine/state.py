@@ -361,20 +361,12 @@ class ObjectActionEffect(BaseModel):
     move_to_location_id: str | None = None
 
 
-class Skill(BaseModel):
-    skill_id: str
-    name: str
-    description: str
-    content: str
-
-
 class WorldState(BaseModel):
     current_time: int = 8 * 60
     agent: AgentState
     areas: dict[str, Area] = Field(default_factory=dict)
     locations: dict[str, Location]
     objects: dict[str, WorldObject] = Field(default_factory=dict)
-    skills: dict[str, Skill] = Field(default_factory=dict)
     opening_briefing: str = ""
     public_rules: list[str] = Field(default_factory=list)
     world_flags: dict[str, bool] = Field(default_factory=dict)

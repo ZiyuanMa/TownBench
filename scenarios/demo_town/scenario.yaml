@@ -115,25 +115,12 @@ objects:
         set_world_flags:
           order_logged: true
 
-skills:
-  - skill_id: tea_basics
-    file: skills/tea_basics.md
-  - skill_id: inventory_rules
-    file: skills/inventory_rules.md
-  - skill_id: order_fulfillment
-    file: skills/order_fulfillment.md
-  - skill_id: tea_history
-    file: skills/tea_history.md
-
 action_costs:
   move_to:
     time_delta: 12
     energy_delta: -3
   open_resource:
     time_delta: 2
-  load_skill:
-    time_delta: 4
-    energy_delta: -1
   call_action:
     time_delta: 10
     energy_delta: -4

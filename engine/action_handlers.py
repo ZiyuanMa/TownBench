@@ -207,37 +207,6 @@ def _handle_open_resource(state: WorldState, action: Action) -> ActionExecution:
     )
 
 
-def _handle_load_skill(state: WorldState, action: Action) -> ActionExecution:
-    if not action.target_id:
-        return _failure(
-            "missing_target",
-            "load_skill requires a target_id.",
-            result_data={"visible_skill_ids": sorted(state.skills)},
-        )
-
-    skill = state.skills.get(action.target_id)
-    if skill is None:
-        return _failure(
-            "unknown_skill",
-            f"Unknown skill `{action.target_id}`.",
-            result_data={
-                "target_id": action.target_id,
-                "visible_skill_ids": sorted(state.skills),
-            },
-        )
-
-    return _success(
-        f"Loaded skill `{skill.name}`.",
-        payload_builder=lambda current_state, skill_id=skill.skill_id: {
-            "kind": "skill",
-            "skill_id": skill_id,
-            "name": current_state.skills[skill_id].name,
-            "description": current_state.skills[skill_id].description,
-            "content": current_state.skills[skill_id].content,
-        },
-    )
-
-
 def _handle_call_action(state: WorldState, action: Action) -> ActionExecution:
     if not action.target_id:
         return _failure(

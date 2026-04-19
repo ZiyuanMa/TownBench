@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from engine.state import AgentState, Location, Skill, WorldObject, WorldState
+from engine.state import AgentState, Location, WorldObject, WorldState
 
 
 @pytest.fixture()
@@ -52,14 +52,6 @@ def minimal_world_state() -> WorldState:
                 visible_state={"open": True},
                 action_ids=["inspect"],
             ),
-        },
-        skills={
-            "safety_basics": Skill(
-                skill_id="safety_basics",
-                name="Safety Basics",
-                description="Simple safety reminders for acting in the town.",
-                content="Always check your location before acting.",
-            )
         },
         scenario_id="m1_test",
         seed=7,

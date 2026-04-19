@@ -99,7 +99,6 @@ def test_multi_area_town_loads_expected_area_aware_content():
     }
     assert env.state.locations["tea_room"].area_id == "workshop_building"
     assert env.state.locations["pickup_window"].area_id == "cafe_corner"
-    assert set(env.state.skills) == {"tea_operations", "cashflow_recovery", "service_contracts"}
     assert env.state.objects["operations_board"].resource_content.startswith("Town operating summary")
     assert env.state.objects["cafe_buyer"].visible_state["packed_tea_payout"] == 12
     assert env.state.objects["locker_desk"].visible_state["upgrade_status"] == "available"

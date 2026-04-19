@@ -60,11 +60,6 @@ def render_initial_observation(
                 line += f" Visible state: {_format_mapping(item.visible_state)}."
             lines.append(line)
 
-    if normalized.visible_skills:
-        lines.append("Visible skills:")
-        for item in normalized.visible_skills:
-            lines.append(f"- {item.name} ({item.skill_id}): {item.description}")
-
     return "\n".join(lines)
 
 
@@ -128,14 +123,6 @@ def _render_success_details(action: Action, data: dict[str, Any]) -> list[str]:
     if action.type == "open_resource":
         return [f"Title: {data.get('title', '')}", "Content:", str(data.get("content", ""))]
 
-    if action.type == "load_skill":
-        return [
-            f"Skill id: {data.get('skill_id', '')}",
-            f"Description: {data.get('description', '')}",
-            "Content:",
-            str(data.get("content", "")),
-        ]
-
     if action.type == "call_action":
         details = []
         if data.get("action_name"):
@@ -182,7 +169,7 @@ def _build_failure_summary(result: StepResult) -> str | None:
         return "The provided action_args do not match any valid option for this action."
     if error_type == "invalid_wait_duration":
         return "The wait duration must be a positive integer within the allowed limit."
-    if error_type in {"unknown_target", "unknown_skill", "unknown_location"}:
+    if error_type in {"unknown_target", "unknown_location"}:
         return "The id you provided is not recognized in the current environment."
     if error_type == "unreachable_location":
         return "You cannot move directly to that location from where you are now."
@@ -228,10 +215,6 @@ def _build_failure_next_steps(action: Action, result: StepResult) -> list[str]:
             return _take_steps(
                 f"Retry with one of the currently reachable locations: {_format_list(data.get('reachable_locations', []))}.",
             )
-        if action.type == "load_skill" and "visible_skill_ids" in data:
-            return _take_steps(
-                f"Retry with one of the visible skill ids: {_format_list(data.get('visible_skill_ids', []))}.",
-            )
         if "visible_object_ids" in data:
             return _take_steps(
                 "Retry with a valid target_id from the current room.",
@@ -261,11 +244,6 @@ def _build_failure_next_steps(action: Action, result: StepResult) -> list[str]:
                 f"Retry with a positive integer number of minutes no greater than {max_wait_minutes}.",
             )
         return _take_steps("Retry with a positive integer wait duration within the allowed limit.")
-
-    if error_type == "unknown_skill":
-        return _take_steps(
-            f"Use one of the visible skill ids instead: {_format_list(data.get('visible_skill_ids', []))}.",
-        )
 
     if error_type in {"unknown_location", "unreachable_location"}:
         return _take_steps(
@@ -363,8 +341,6 @@ def _render_failure_context(action: Action, data: dict[str, Any]) -> list[str]:
         details.append(f"Reachable locations now: {_format_list(data.get('reachable_locations', []))}")
     if "visible_object_ids" in data:
         details.append(f"Visible objects now: {_format_list(data.get('visible_object_ids', []))}")
-    if "visible_skill_ids" in data:
-        details.append(f"Visible skills now: {_format_list(data.get('visible_skill_ids', []))}")
     if data.get("callable_actions"):
         details.append(f"Callable actions on object: {_format_callable_actions(data['callable_actions'])}")
     elif "available_actions" in data:
@@ -458,10 +434,6 @@ def _render_observation_snapshot(observation: Observation) -> list[str]:
                 object_line += f" Visible state: {_format_mapping(visible_state)}."
             lines.append(object_line)
 
-    if observation.visible_skills:
-        lines.append("Visible skills:")
-        for item in observation.visible_skills:
-            lines.append(f"- {item.name} ({item.skill_id})")
     return lines
 
 

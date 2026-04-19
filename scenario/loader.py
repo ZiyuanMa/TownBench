@@ -7,7 +7,7 @@ import yaml
 
 from engine.callable_actions import get_callable_action_definitions, matches_callable_action_matcher
 from engine.rules import inventory_capacity, inventory_load, parse_time_label
-from engine.state import Area, CallableActionMatcher, ConditionNode, Location, Skill, WorldObject, WorldState
+from engine.state import Area, CallableActionMatcher, ConditionNode, Location, WorldObject, WorldState
 from scenario.schema import ScenarioConfig, ScenarioObjectSource
 
 
@@ -21,9 +21,8 @@ def load_scenario(path: Union[str, Path]) -> WorldState:
     locations = _build_locations(config)
     _validate_location_references(config, locations, areas=areas)
     objects = _build_objects(config, locations=locations, base_dir=base_dir)
-    skills = _build_skills(config, base_dir=base_dir)
     _validate_event_rules(config, objects=objects, locations=locations)
-    state = _build_world_state(config, areas=areas, locations=locations, objects=objects, skills=skills)
+    state = _build_world_state(config, areas=areas, locations=locations, objects=objects)
     _validate_initial_agent_capacity(state)
     return state
 
@@ -36,7 +35,6 @@ def _validate_unique_ids(config: ScenarioConfig) -> None:
     _ensure_unique_ids([item.area_id for item in config.areas], "area")
     _ensure_unique_ids([item.location_id for item in config.locations], "location")
     _ensure_unique_ids([item.object_id for item in config.objects], "object")
-    _ensure_unique_ids([item.skill_id for item in config.skills], "skill")
     _ensure_unique_ids([item.rule_id for item in config.dynamic_rules], "dynamic rule")
     _ensure_unique_ids([item.event_id for item in config.event_rules], "event rule")
 
@@ -79,17 +77,12 @@ def _build_objects(
     return objects
 
 
-def _build_skills(config: ScenarioConfig, *, base_dir: Path) -> dict[str, Skill]:
-    return {item.skill_id: _load_skill(base_dir / item.file, item.skill_id) for item in config.skills}
-
-
 def _build_world_state(
     config: ScenarioConfig,
     *,
     areas: dict[str, Area],
     locations: dict[str, Location],
     objects: dict[str, WorldObject],
-    skills: dict[str, Skill],
 ) -> WorldState:
     return WorldState(
         current_time=parse_time_label(config.initial_world_state.current_time),
@@ -97,7 +90,6 @@ def _build_world_state(
         areas=areas,
         locations=locations,
         objects=objects,
-        skills=skills,
         opening_briefing=config.opening_briefing,
         public_rules=list(config.public_rules),
         world_flags=dict(config.initial_world_state.world_flags),
@@ -118,55 +110,6 @@ def _resolve_resource_content(item: ScenarioObjectSource, *, base_dir: Path) -> 
     if item.resource_file:
         return _read_text(base_dir / item.resource_file)
     return item.resource_content
-
-
-def _load_skill(path: Path, skill_id: str) -> Skill:
-    raw_content = _read_text(path)
-    metadata, content = _parse_skill_document(raw_content, path=path)
-    return Skill(
-        skill_id=skill_id,
-        name=metadata["name"],
-        description=metadata["description"],
-        content=content,
-    )
-
-
-def _parse_skill_document(raw_content: str, *, path: Path) -> tuple[dict[str, str], str]:
-    if not raw_content.startswith("---\n"):
-        raise ValueError(f"Skill file `{path}` must begin with YAML frontmatter.")
-
-    closing_delimiter = raw_content.find("\n---\n", 4)
-    if closing_delimiter == -1:
-        raise ValueError(f"Skill file `{path}` must close its YAML frontmatter with `---`.")
-
-    metadata_block = raw_content[4:closing_delimiter]
-    body = raw_content[closing_delimiter + len("\n---\n"):].strip()
-    metadata = yaml.safe_load(metadata_block) or {}
-
-    if not isinstance(metadata, dict):
-        raise ValueError(f"Skill file `{path}` frontmatter must be a YAML mapping.")
-
-    name = _require_skill_metadata_string(metadata, "name", path=path)
-    description = _require_skill_metadata_string(metadata, "description", path=path)
-    if not body:
-        raise ValueError(f"Skill file `{path}` must contain non-empty markdown content after frontmatter.")
-
-    return {"name": name, "description": description}, body
-
-
-def _require_skill_metadata_string(metadata: dict[str, object], field_name: str, *, path: Path) -> str:
-    value = metadata.get(field_name)
-    if not isinstance(value, str):
-        raise ValueError(
-            f"Skill file `{path}` must define `{field_name}` as a non-empty string in frontmatter."
-        )
-
-    normalized = value.strip()
-    if not normalized:
-        raise ValueError(
-            f"Skill file `{path}` must define `{field_name}` as a non-empty string in frontmatter."
-        )
-    return normalized
 
 
 def _ensure_unique_ids(values: list[str], label: str) -> None:

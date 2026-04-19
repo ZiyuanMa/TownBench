@@ -28,10 +28,6 @@ def test_load_scenario_builds_world_state():
     }
     assert state.objects["notice_board"].resource_content.startswith("Shift tea work")
     assert state.objects["recipe_card"].resource_content.startswith("Workshop recipe reminder")
-    assert state.skills["tea_basics"].name == "Tea Basics"
-    assert state.skills["tea_basics"].description.startswith("Basic workshop tea preparation steps")
-    assert set(state.skills) == {"tea_basics", "inventory_rules", "order_fulfillment", "tea_history"}
-    assert state.skills["tea_basics"].content.startswith("# Tea Basics")
     assert state.opening_briefing.startswith("You arrived in town")
     assert state.public_rules[0].startswith("Actions cost time")
     assert state.action_costs["move_to"].time_delta == 12
@@ -74,7 +70,6 @@ objects:
               money_delta: -1
               inventory_delta:
                 packaging_sleeve: 1
-skills: []
 dynamic_rules:
   - rule_id: supply_counter_closed_early
     when:
@@ -131,12 +126,11 @@ def test_search_is_rejected_and_open_resource_still_works():
     assert "Payment: 9 coins each time" in open_result.data["content"]
 
 
-def test_load_skill_and_call_action_change_world_state():
+def test_call_action_changes_world_state():
     scenario_path = Path(__file__).resolve().parents[1] / "scenarios" / "demo_town" / "scenario.yaml"
     env = TownBenchEnv(load_scenario(scenario_path))
     env.reset()
 
-    skill_result = env.step({"type": "load_skill", "target_id": "tea_basics"})
     env.step({"type": "move_to", "target_id": "workshop"})
     action_result = env.step(
         {
@@ -146,9 +140,6 @@ def test_load_skill_and_call_action_change_world_state():
         }
     )
 
-    assert skill_result.success is True
-    assert skill_result.data["name"] == "Tea Basics"
-    assert "Basic workshop tea preparation steps" in skill_result.data["description"]
     assert action_result.success is True
     assert env.state.objects["tea_station"].visible_state["brewed_today"] is True
     assert env.state.world_flags["tea_ready"] is True
@@ -281,7 +272,6 @@ locations:
     name: Duplicate Plaza
     description: Another plaza.
 objects: []
-skills: []
 """.strip(),
         encoding="utf-8",
     )
@@ -303,7 +293,6 @@ locations:
     description: A plaza.
     links: [market]
 objects: []
-skills: []
 """.strip(),
         encoding="utf-8",
     )
@@ -581,7 +570,6 @@ locations:
     description: A records room.
     area_id: library
 objects: []
-skills: []
 """.strip(),
         encoding="utf-8",
     )
@@ -612,7 +600,6 @@ locations:
     description: The entry room.
     area_id: library
 objects: []
-skills: []
 """.strip(),
         encoding="utf-8",
     )
@@ -634,7 +621,6 @@ locations:
     description: The entry room.
     area_id: library
 objects: []
-skills: []
 """.strip(),
         encoding="utf-8",
     )
@@ -716,7 +702,6 @@ locations:
     name: Plaza
     description: A plaza.
 objects: []
-skills: []
 """.strip(),
         encoding="utf-8",
     )
@@ -1171,102 +1156,3 @@ objects:
     with pytest.raises(ValueError, match="may declare at most one argument"):
         load_scenario(scenario_file)
 
-
-def test_loader_rejects_skill_without_frontmatter(tmp_path):
-    skill_file = tmp_path / "skill.md"
-    scenario_file = tmp_path / "scenario.yaml"
-    skill_file.write_text("# Missing metadata", encoding="utf-8")
-    scenario_file.write_text(
-        f"""
-scenario_id: broken
-initial_agent_state:
-  location_id: plaza
-locations:
-  - location_id: plaza
-    name: Plaza
-    description: A plaza.
-skills:
-  - skill_id: missing_metadata
-    file: {skill_file.name}
-""".strip(),
-        encoding="utf-8",
-    )
-
-    with pytest.raises(ValueError, match="must begin with YAML frontmatter"):
-        load_scenario(scenario_file)
-
-
-def test_loader_rejects_skill_without_description(tmp_path):
-    skill_file = tmp_path / "skill.md"
-    scenario_file = tmp_path / "scenario.yaml"
-    skill_file.write_text(
-        """
----
-name: Missing Description
----
-
-# Missing Description
-""".strip(),
-        encoding="utf-8",
-    )
-    scenario_file.write_text(
-        f"""
-scenario_id: broken
-initial_agent_state:
-  location_id: plaza
-locations:
-  - location_id: plaza
-    name: Plaza
-    description: A plaza.
-skills:
-  - skill_id: missing_description
-    file: {skill_file.name}
-""".strip(),
-        encoding="utf-8",
-    )
-
-    with pytest.raises(ValueError, match="must define `description` as a non-empty string"):
-        load_scenario(scenario_file)
-
-
-@pytest.mark.parametrize(
-    ("field_name", "field_value"),
-    [
-        ("name", "null"),
-        ("name", "false"),
-        ("description", "0"),
-    ],
-)
-def test_loader_rejects_non_string_skill_metadata(tmp_path, field_name, field_value):
-    skill_file = tmp_path / "skill.md"
-    scenario_file = tmp_path / "scenario.yaml"
-    skill_file.write_text(
-        f"""
----
-name: Valid Name
-description: Valid description.
-{field_name}: {field_value}
----
-
-# Invalid Skill
-""".strip(),
-        encoding="utf-8",
-    )
-    scenario_file.write_text(
-        f"""
-scenario_id: broken
-initial_agent_state:
-  location_id: plaza
-locations:
-  - location_id: plaza
-    name: Plaza
-    description: A plaza.
-skills:
-  - skill_id: invalid_metadata
-    file: {skill_file.name}
-""".strip(),
-        encoding="utf-8",
-    )
-
-    with pytest.raises(ValueError, match=rf"must define `{field_name}` as a non-empty string"):
-        load_scenario(scenario_file)

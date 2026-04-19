@@ -8,7 +8,6 @@ from engine.action_handlers import (
     _handle_call_action,
     _handle_check_status,
     _handle_inspect,
-    _handle_load_skill,
     _handle_move_to,
     _handle_open_resource,
     _handle_wait,
@@ -83,17 +82,6 @@ _ACTION_SPEC_LIST: tuple[ActionSpec, ...] = (
             build_action=lambda target_id: Action(type="open_resource", target_id=target_id),
         ),
         handler=_handle_open_resource,
-    ),
-    ActionSpec(
-        action_type="load_skill",
-        default_cost=ActionCost(time_delta=5, energy_delta=-1),
-        tool=ActionToolSpec(
-            name="load_skill",
-            description="Load a skill document by skill id and return its full content.",
-            parameters=(ActionToolParameter("target_id"),),
-            build_action=lambda target_id: Action(type="load_skill", target_id=target_id),
-        ),
-        handler=_handle_load_skill,
     ),
     ActionSpec(
         action_type="check_status",

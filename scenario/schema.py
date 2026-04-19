@@ -140,13 +140,6 @@ class ScenarioObjectSource(BaseModel):
         )
 
 
-class ScenarioSkillSource(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    skill_id: str
-    file: str
-
-
 class ScenarioConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -159,7 +152,6 @@ class ScenarioConfig(BaseModel):
     areas: list[ScenarioAreaSource] = Field(default_factory=list)
     locations: list[ScenarioLocationSource] = Field(default_factory=list)
     objects: list[ScenarioObjectSource] = Field(default_factory=list)
-    skills: list[ScenarioSkillSource] = Field(default_factory=list)
     action_costs: dict[str, ActionCost] = Field(default_factory=dict)
     dynamic_rules: list[DynamicRule] = Field(default_factory=list)
     event_rules: list[WorldEventRule] = Field(default_factory=list)

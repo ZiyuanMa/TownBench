@@ -550,23 +550,12 @@ objects:
         inventory_delta:
           packed_tea: -1
 
-skills:
-  - skill_id: tea_operations
-    file: skills/tea_operations.md
-  - skill_id: cashflow_recovery
-    file: skills/cashflow_recovery.md
-  - skill_id: service_contracts
-    file: skills/service_contracts.md
-
 action_costs:
   move_to:
     time_delta: 6
     energy_delta: -1
   open_resource:
     time_delta: 2
-  load_skill:
-    time_delta: 4
-    energy_delta: -1
   call_action:
     time_delta: 8
     energy_delta: -4

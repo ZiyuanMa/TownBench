@@ -65,12 +65,10 @@ def test_non_snapshot_tools_keep_their_existing_payloads(minimal_world_state):
     check_status = env.step({"type": "check_status"})
     inspect_result = env.step({"type": "inspect", "target_id": "plaza"})
     open_resource = env.step({"type": "open_resource", "target_id": "bulletin"})
-    load_skill = env.step({"type": "load_skill", "target_id": "safety_basics"})
 
     assert check_status.data["agent_status"]["location_id"] == "plaza"
     assert inspect_result.data["kind"] == "location"
     assert open_resource.data["object_id"] == "bulletin"
-    assert load_skill.data["skill_id"] == "safety_basics"
 
 
 def test_wait_advances_time_without_other_state_changes(minimal_world_state):
@@ -607,24 +605,6 @@ def test_open_resource_returns_resource_payload(minimal_world_state):
         "title": "Bulletin Board",
         "content": "Market closes at noon.",
     }
-
-
-def test_load_skill_returns_full_skill_payload(minimal_world_state):
-    env = TownBenchEnv(minimal_world_state)
-    env.reset()
-
-    result = env.step({"type": "load_skill", "target_id": "safety_basics"})
-
-    assert result.success is True
-    assert result.data == {
-        "kind": "skill",
-        "skill_id": "safety_basics",
-        "name": "Safety Basics",
-        "description": "Simple safety reminders for acting in the town.",
-        "content": "Always check your location before acting.",
-    }
-
-
 def test_successful_steps_apply_time_and_energy_costs(minimal_world_state):
     env = TownBenchEnv(minimal_world_state)
     env.reset()

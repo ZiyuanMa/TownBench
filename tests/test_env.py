@@ -8,9 +8,6 @@ def test_reset_returns_initial_observation(minimal_world_state):
 
     assert observation.current_location.location_id == "plaza"
     assert [item.object_id for item in observation.visible_objects] == ["bulletin"]
-    assert [item.skill_id for item in observation.visible_skills] == ["safety_basics"]
-    assert observation.visible_skills[0].name == "Safety Basics"
-    assert observation.visible_skills[0].description.startswith("Simple safety reminders")
     assert env.get_trace() == []
     assert env.is_done() is False
 

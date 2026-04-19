@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from engine.callable_actions import build_callable_actions
 from engine.dynamics import build_effective_object_view
 from engine.rules import format_time_label
-from engine.state import AgentState, Area, Location, Skill, WorldObject, WorldState
+from engine.state import AgentState, Area, Location, WorldObject, WorldState
 
 
 class AgentObservation(BaseModel):
@@ -59,12 +59,6 @@ class ObjectObservation(BaseModel):
     callable_actions: list[CallableActionObservation] = Field(default_factory=list)
 
 
-class SkillObservation(BaseModel):
-    skill_id: str
-    name: str
-    description: str
-
-
 class Observation(BaseModel):
     current_time: str
     agent: AgentObservation
@@ -72,7 +66,6 @@ class Observation(BaseModel):
     current_area: AreaObservation | None = None
     nearby_locations: list[str] = Field(default_factory=list)
     visible_objects: list[ObjectObservation] = Field(default_factory=list)
-    visible_skills: list[SkillObservation] = Field(default_factory=list)
 
 
 def _project_agent(agent: AgentState) -> AgentObservation:
@@ -122,10 +115,6 @@ def _project_effective_object(state: WorldState, object_id: str) -> ObjectObserv
     if effective_view is None:
         return None
     return _project_object(effective_view.object)
-
-
-def _project_skill(skill: Skill) -> SkillObservation:
-    return SkillObservation(skill_id=skill.skill_id, name=skill.name, description=skill.description)
 
 
 def _project_callable_action(callable_action: dict[str, Any]) -> CallableActionObservation:
@@ -181,7 +170,6 @@ def project_observation(state: WorldState) -> Observation:
         for projected in [_project_effective_object(state, object_id)]
         if projected is not None
     ]
-    visible_skills = [_project_skill(skill) for skill in state.skills.values()]
     return Observation(
         current_time=format_time_label(state.current_time),
         agent=_project_agent(state.agent),
@@ -189,7 +177,6 @@ def project_observation(state: WorldState) -> Observation:
         current_area=current_area,
         nearby_locations=_build_nearby_locations(state, location),
         visible_objects=visible_objects,
-        visible_skills=visible_skills,
     )
 
 
@@ -200,5 +187,4 @@ def summarize_observation(observation: Observation) -> dict[str, Any]:
         "current_area_id": observation.current_area.area_id if observation.current_area is not None else None,
         "nearby_location_ids": list(observation.nearby_locations),
         "visible_object_ids": [item.object_id for item in observation.visible_objects],
-        "visible_skill_ids": [item.skill_id for item in observation.visible_skills],
     }
