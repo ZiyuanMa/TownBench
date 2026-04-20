@@ -67,8 +67,8 @@ python -m venv .venv
 .venv/bin/python -m pytest
 ```
 
-体验 OpenAI Agent 基准模型在默认场景中的表现：
+体验 LangChain Agent 在默认场景中的表现：
 ```bash
 # 请确保环境变量（如 .env）中已配置相应的 API Keys
-.venv/bin/python scripts/run_openai_baseline.py --scenario scenarios/demo_town/scenario.yaml
+.venv/bin/python scripts/run_langchain_agent.py --scenario scenarios/demo_town/scenario.yaml
 ```

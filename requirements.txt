@@ -1,4 +1,5 @@
-openai-agents
+langchain
+langchain-openai
 pydantic>=2,<3
 PyYAML
 pytest

@@ -8,26 +8,26 @@ from engine.action_models import Action
 from engine.rendering import render_tool_result
 from runtime.env import TownBenchEnv
 
-ToolDecorator = Callable[[Callable[..., Any]], Callable[..., Any]]
+ToolFactory = Callable[[Callable[..., Any]], Any]
 
 
 def build_townbench_tools(
     env: TownBenchEnv,
     *,
-    function_tool_decorator: ToolDecorator | None = None,
-) -> list[Callable[..., Any]]:
-    decorator = function_tool_decorator or _load_function_tool_decorator()
-    return [_build_tool(spec, env, decorator) for spec in TOOL_ACTION_SPECS]
+    tool_factory: Callable[..., Any] | None = None,
+) -> list[Any]:
+    factory = tool_factory or _load_tool_factory()
+    return [_build_tool(spec, env, factory) for spec in TOOL_ACTION_SPECS]
 
 
 def _build_tool(
     spec: ActionSpec,
     env: TownBenchEnv,
-    decorator: ToolDecorator,
-) -> Callable[..., Any]:
+    factory: Callable[..., Any],
+) -> Any:
     tool_spec = spec.tool
     if tool_spec is None:
-        raise ValueError(f"Action `{spec.action_type}` is not exposed as a baseline tool.")
+        raise ValueError(f"Action `{spec.action_type}` is not exposed as an agent tool.")
 
     def tool(*args: Any, **kwargs: Any) -> str:
         action = _build_action(tool_spec, args=args, kwargs=kwargs)
@@ -52,7 +52,7 @@ def _build_tool(
         parameter.name: parameter.annotation
         for parameter in tool_spec.parameters
     } | {"return": str}
-    return decorator(tool)
+    return factory(tool, name=tool_spec.name, description=tool_spec.description)
 
 
 def _build_action(tool_spec: ActionToolSpec, *, args: tuple[Any, ...], kwargs: dict[str, Any]) -> Action:
@@ -63,11 +63,19 @@ def _build_action(tool_spec: ActionToolSpec, *, args: tuple[Any, ...], kwargs: d
     return tool_spec.build_action(**kwargs)
 
 
-def _load_function_tool_decorator() -> ToolDecorator:
+def _load_tool_factory() -> Callable[..., Any]:
     try:
-        from agents import function_tool
+        from langchain_core.tools import StructuredTool
     except ImportError as exc:
         raise RuntimeError(
-            "openai-agents is not installed. Install dependencies before using the OpenAI baseline."
+            "langchain and langchain-openai are not installed. Install dependencies before using the LangChain agent."
         ) from exc
-    return function_tool
+
+    def factory(fn: Callable[..., Any], *, name: str, description: str) -> Any:
+        return StructuredTool.from_function(
+            func=fn,
+            name=name,
+            description=description,
+        )
+
+    return factory

@@ -1,35 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, Callable
-
-from baselines.openai_agents.config import OpenAIAgentsConfig
-from baselines.openai_agents.tools import ToolDecorator, build_townbench_tools
 from engine.state import Location, WorldState
 from runtime.env import TownBenchEnv
-
-
-def build_openai_agent(
-    env: TownBenchEnv,
-    config: OpenAIAgentsConfig | None = None,
-    *,
-    agent_cls: type | None = None,
-    function_tool_decorator: ToolDecorator | None = None,
-) -> Any:
-    config = config or OpenAIAgentsConfig()
-    agent_type = agent_cls or _load_agent_class()
-    tools = build_townbench_tools(
-        env,
-        function_tool_decorator=function_tool_decorator,
-    )
-
-    kwargs: dict[str, Any] = {
-        "name": config.agent_name,
-        "instructions": config.system_prompt or build_default_instructions(env),
-        "tools": tools,
-    }
-    if config.model:
-        kwargs["model"] = config.model
-    return agent_type(**kwargs)
 
 
 def build_default_instructions(env: TownBenchEnv) -> str:
@@ -77,13 +49,3 @@ def _reachable_location_ids(state: WorldState, location: Location) -> list[str]:
         )
     nearby.discard(location.location_id)
     return sorted(nearby)
-
-
-def _load_agent_class() -> type:
-    try:
-        from agents import Agent
-    except ImportError as exc:
-        raise RuntimeError(
-            "openai-agents is not installed. Install dependencies before using the OpenAI baseline."
-        ) from exc
-    return Agent
