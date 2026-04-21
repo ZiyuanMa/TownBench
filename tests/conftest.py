@@ -41,7 +41,6 @@ def minimal_world_state() -> WorldState:
                 location_id="plaza",
                 summary="A board with public notices.",
                 visible_state={"notice_count": 2},
-                action_ids=["inspect"],
             ),
             "counter": WorldObject(
                 object_id="counter",
@@ -50,7 +49,6 @@ def minimal_world_state() -> WorldState:
                 location_id="market",
                 summary="A checkout counter for purchases.",
                 visible_state={"open": True},
-                action_ids=["inspect"],
             ),
         },
         scenario_id="m1_test",

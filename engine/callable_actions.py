@@ -34,23 +34,10 @@ class CallableActionAvailabilityOperation:
 
 
 def get_callable_action_definitions(world_object: WorldObject) -> dict[str, CallableActionDefinition]:
-    if world_object.callable_actions:
-        return {
-            action_name: definition.model_copy(deep=True)
-            for action_name, definition in world_object.callable_actions.items()
-        }
-
-    legacy_actions: dict[str, CallableActionDefinition] = {}
-    for action_name in world_object.action_ids:
-        effect = world_object.action_effects.get(action_name)
-        if effect is None:
-            continue
-        legacy_actions[action_name] = CallableActionDefinition(
-            description="",
-            arguments={},
-            routes=[CallableActionRoute(match={}, effect=effect.model_copy(deep=True))],
-        )
-    return legacy_actions
+    return {
+        action_name: definition.model_copy(deep=True)
+        for action_name, definition in world_object.callable_actions.items()
+    }
 
 
 def build_callable_actions(world_object: WorldObject) -> list[dict[str, Any]]:

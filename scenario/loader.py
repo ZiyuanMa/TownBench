@@ -147,13 +147,7 @@ def _validate_location_areas(locations: dict[str, Location], *, areas: dict[str,
 def _validate_object_source(item: ScenarioObjectSource, *, locations: dict[str, Location]) -> None:
     if item.location_id not in locations:
         raise ValueError(f"Object `{item.object_id}` references unknown location `{item.location_id}`.")
-    has_legacy_actions = bool(item.action_ids or item.action_effects)
-    has_callable_actions = bool(item.callable_actions)
-    if has_legacy_actions and has_callable_actions:
-        raise ValueError(
-            f"Object `{item.object_id}` must use either legacy action_ids/action_effects or callable_actions, not both."
-        )
-    if has_callable_actions:
+    if item.callable_actions:
         for action_name, callable_action in item.callable_actions.items():
             if not callable_action.routes:
                 raise ValueError(
@@ -212,12 +206,7 @@ def _validate_object_source(item: ScenarioObjectSource, *, locations: dict[str, 
                 raise ValueError(
                     f"Object `{item.object_id}` zero-argument callable action `{action_name}` must use an empty route match."
                 )
-        return
 
-    if set(item.action_effects) - set(item.action_ids):
-        raise ValueError(
-            f"Object `{item.object_id}` has action_effects that are not exposed in action_ids."
-        )
 
 
 def _validate_event_rules(

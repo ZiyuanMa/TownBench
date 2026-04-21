@@ -98,13 +98,21 @@ def test_render_tool_result_surfaces_missing_inventory_context(minimal_world_sta
     env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
     env.reset()
     env.state.objects["counter"].actionable = True
-    env.state.objects["counter"].action_ids = ["repair_device"]
-    env.state.objects["counter"].action_effects = {
-        "repair_device": ObjectActionEffect(
-            message="Repaired device.",
-            required_inventory={"repair_kit": 1},
-            inventory_delta={"repair_kit": -1},
-            money_delta=9,
+    env.state.objects["counter"].callable_actions = {
+        "repair_device": CallableActionDefinition(
+            description="",
+            arguments={},
+            routes=[
+                CallableActionRoute(
+                    match={},
+                    effect=ObjectActionEffect(
+                        message="Repaired device.",
+                        required_inventory={"repair_kit": 1},
+                        inventory_delta={"repair_kit": -1},
+                        money_delta=9,
+                    ),
+                )
+            ],
         )
     }
     env.step({"type": "move_to", "target_id": "market"})

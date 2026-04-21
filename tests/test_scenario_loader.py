@@ -221,7 +221,7 @@ def test_paid_order_reopens_the_loop_for_another_payout():
 def test_call_action_rejects_unexposed_actions():
     scenario_path = Path(__file__).resolve().parents[1] / "scenarios" / "demo_town" / "scenario.yaml"
     state = load_scenario(scenario_path)
-    state.objects["tea_station"].action_ids = []
+    state.objects["tea_station"].callable_actions = {}
     env = TownBenchEnv(state)
     env.reset()
     env.step({"type": "move_to", "target_id": "workshop"})
@@ -345,12 +345,16 @@ objects:
     location_id: plaza
     summary: A simple stall.
     actionable: true
-    action_ids: [buy_item]
-    action_effects:
+    callable_actions:
       buy_item:
-        message: Bought one item.
-        required_money: 1
-        money_delta: -1
+        description: ""
+        arguments: {}
+        routes:
+          - match: {}
+            effect:
+              message: Bought one item.
+              required_money: 1
+              money_delta: -1
 dynamic_rules:
   - rule_id: bad_override
     when:
@@ -391,12 +395,16 @@ objects:
     location_id: plaza
     summary: A simple stall.
     actionable: true
-    action_ids: [buy_item]
-    action_effects:
+    callable_actions:
       buy_item:
-        message: Bought one item.
-        required_money: 1
-        money_delta: -1
+        description: ""
+        arguments: {}
+        routes:
+          - match: {}
+            effect:
+              message: Bought one item.
+              required_money: 1
+              money_delta: -1
 dynamic_rules:
   - rule_id: bad_enable
     when:
@@ -659,36 +667,6 @@ objects:
         load_scenario(scenario_file)
 
 
-def test_loader_rejects_hidden_action_effects(tmp_path):
-    scenario_file = tmp_path / "bad_scenario.yaml"
-    scenario_file.write_text(
-        """
-scenario_id: broken
-initial_agent_state:
-  location_id: plaza
-locations:
-  - location_id: plaza
-    name: Plaza
-    description: A plaza.
-objects:
-  - object_id: station
-    name: Station
-    object_type: station
-    location_id: plaza
-    summary: A station.
-    action_ids: []
-    actionable: true
-    action_effects:
-      hidden_action:
-        message: Hidden.
-""".strip(),
-        encoding="utf-8",
-    )
-
-    with pytest.raises(ValueError, match="action_effects that are not exposed"):
-        load_scenario(scenario_file)
-
-
 def test_loader_rejects_unknown_initial_agent_fields(tmp_path):
     scenario_file = tmp_path / "bad_scenario.yaml"
     scenario_file.write_text(
@@ -750,11 +728,15 @@ objects:
     object_type: station
     location_id: plaza
     summary: A station.
-    action_ids: [brew_tea]
-    action_effects:
+    callable_actions:
       brew_tea:
-        message: Brewed.
-        reward_points: 3
+        description: ""
+        arguments: {}
+        routes:
+          - match: {}
+            effect:
+              message: Brewed.
+              reward_points: 3
 """.strip(),
         encoding="utf-8",
     )
@@ -920,7 +902,7 @@ def test_loader_parses_agent_stat_fields_on_object_actions(tmp_path):
     scenario_file = tmp_path / "scenario.yaml"
     scenario_file.write_text(
         """
-scenario_id: stats_action_effects
+scenario_id: stats_callable_actions
 initial_agent_state:
   location_id: plaza
   stats:
@@ -935,23 +917,26 @@ objects:
     object_type: desk
     location_id: plaza
     summary: A storage service counter.
-    action_ids: [upgrade_locker]
-    actionable: true
-    action_effects:
+    callable_actions:
       upgrade_locker:
-        message: Locker upgraded.
-        required_agent_stats:
-          carry_limit: 2
-        agent_stat_deltas:
-          carry_limit: 3
-        set_world_flags:
-          locker_upgraded: true
+        description: ""
+        arguments: {}
+        routes:
+          - match: {}
+            effect:
+              message: Locker upgraded.
+              required_agent_stats:
+                carry_limit: 2
+              agent_stat_deltas:
+                carry_limit: 3
+              set_world_flags:
+                locker_upgraded: true
 """.strip(),
         encoding="utf-8",
     )
 
     state = load_scenario(scenario_file)
-    effect = state.objects["locker_desk"].action_effects["upgrade_locker"]
+    effect = state.objects["locker_desk"].callable_actions["upgrade_locker"].routes[0].effect
 
     assert state.agent.stats == {"carry_limit": 2}
     assert effect.required_agent_stats == {"carry_limit": 2}
@@ -963,7 +948,7 @@ def test_multi_area_loader_authors_locker_upgrade_as_one_time_gated_capacity_inc
     scenario_path = Path(__file__).resolve().parents[1] / "scenarios" / "multi_area_town" / "scenario.yaml"
 
     state = load_scenario(scenario_path)
-    effect = state.objects["locker_desk"].action_effects["buy_locker_upgrade"]
+    effect = state.objects["locker_desk"].callable_actions["buy_locker_upgrade"].routes[0].effect
 
     assert state.agent.stats == {"carry_limit": 3}
     assert state.world_flags["locker_upgrade_purchased"] is False
@@ -1047,7 +1032,7 @@ event_rules:
         load_scenario(scenario_file)
 
 
-def test_loader_rejects_action_effects_with_unknown_move_target(tmp_path):
+def test_loader_rejects_callable_action_with_unknown_move_target(tmp_path):
     scenario_file = tmp_path / "bad_scenario.yaml"
     scenario_file.write_text(
         """
@@ -1064,57 +1049,20 @@ objects:
     object_type: cart
     location_id: plaza
     summary: A paid cart.
-    action_ids: [ride]
-    actionable: true
-    action_effects:
+    callable_actions:
       ride:
-        message: Ride.
-        move_to_location_id: workshop
+        description: ""
+        arguments: {}
+        routes:
+          - match: {}
+            effect:
+              message: Ride.
+              move_to_location_id: workshop
 """.strip(),
         encoding="utf-8",
     )
 
     with pytest.raises(ValueError, match="references unknown location"):
-        load_scenario(scenario_file)
-
-
-def test_loader_rejects_mixed_legacy_and_callable_action_authoring(tmp_path):
-    scenario_file = tmp_path / "bad_scenario.yaml"
-    scenario_file.write_text(
-        """
-scenario_id: broken
-initial_agent_state:
-  location_id: plaza
-locations:
-  - location_id: plaza
-    name: Plaza
-    description: A plaza.
-objects:
-  - object_id: counter
-    name: Counter
-    object_type: stall
-    location_id: plaza
-    summary: A small counter.
-    actionable: true
-    action_ids: [buy_snack]
-    callable_actions:
-      buy:
-        arguments:
-          item_id:
-            options: [snack]
-        routes:
-          - match:
-              item_id: snack
-            effect:
-              message: Buy snack.
-    action_effects:
-      buy_snack:
-        message: Buy snack.
-""".strip(),
-        encoding="utf-8",
-    )
-
-    with pytest.raises(ValueError, match="either legacy action_ids/action_effects or callable_actions"):
         load_scenario(scenario_file)
 
 

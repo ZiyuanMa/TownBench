@@ -71,18 +71,22 @@ objects:
     summary: "A station that can brew tea for pickup."
     visible_state:
       brewed_today: false
-    action_ids: ["brew_tea"]
     actionable: true
-    action_effects:
+    callable_actions:
       brew_tea:
-        message: "You brewed a fresh pot of tea."
-        required_world_flags:
-          tea_ready: false
-          order_logged: false
-        set_visible_state:
-          brewed_today: true
-        set_world_flags:
-          tea_ready: true
+        description: ""
+        arguments: {}
+        routes:
+          - match: {}
+            effect:
+              message: "You brewed a fresh pot of tea."
+              required_world_flags:
+                tea_ready: false
+                order_logged: false
+              set_visible_state:
+                brewed_today: true
+              set_world_flags:
+                tea_ready: true
 
   - object_id: storage_shelf
     name: Storage Shelf
@@ -100,19 +104,23 @@ objects:
     summary: "A ledger used to record finished tea orders and collect payment."
     visible_state:
       last_entry: none
-    action_ids: ["record_order"]
     actionable: true
-    action_effects:
+    callable_actions:
       record_order:
-        message: "You recorded the finished tea order and collected payment."
-        money_delta: 9
-        required_world_flags:
-          tea_ready: true
-          order_logged: false
-        set_visible_state:
-          last_entry: morning_tea_order
-        set_world_flags:
-          order_logged: true
+        description: ""
+        arguments: {}
+        routes:
+          - match: {}
+            effect:
+              message: "You recorded the finished tea order and collected payment."
+              money_delta: 9
+              required_world_flags:
+                tea_ready: true
+                order_logged: false
+              set_visible_state:
+                last_entry: morning_tea_order
+              set_world_flags:
+                order_logged: true
 
 action_costs:
   move_to:

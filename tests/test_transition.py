@@ -237,12 +237,20 @@ def test_call_action_required_agent_stats_blocks_execution(minimal_world_state):
     env.reset()
     env.state.agent.stats = {"carry_limit": 2}
     env.state.objects["counter"].actionable = True
-    env.state.objects["counter"].action_ids = ["lift_crate"]
-    env.state.objects["counter"].action_effects = {
-        "lift_crate": ObjectActionEffect(
-            message="Lifted the crate.",
-            required_agent_stats={"carry_limit": 3},
-            set_visible_state={"crate_moved": True},
+    env.state.objects["counter"].callable_actions = {
+        "lift_crate": CallableActionDefinition(
+            description="",
+            arguments={},
+            routes=[
+                CallableActionRoute(
+                    match={},
+                    effect=ObjectActionEffect(
+                        message="Lifted the crate.",
+                        required_agent_stats={"carry_limit": 3},
+                        set_visible_state={"crate_moved": True},
+                    ),
+                )
+            ],
         )
     }
     env.step({"type": "move_to", "target_id": "market"})
@@ -260,13 +268,21 @@ def test_call_action_accepts_top_level_action_name(minimal_world_state):
     env.reset()
     env.state.agent.stats = {"carry_limit": 2}
     env.state.objects["counter"].actionable = True
-    env.state.objects["counter"].action_ids = ["rent_cart"]
-    env.state.objects["counter"].action_effects = {
-        "rent_cart": ObjectActionEffect(
-            message="Rented a hand cart.",
-            money_delta=-4,
-            required_money=4,
-            agent_stat_deltas={"carry_limit": 3},
+    env.state.objects["counter"].callable_actions = {
+        "rent_cart": CallableActionDefinition(
+            description="",
+            arguments={},
+            routes=[
+                CallableActionRoute(
+                    match={},
+                    effect=ObjectActionEffect(
+                        message="Rented a hand cart.",
+                        money_delta=-4,
+                        required_money=4,
+                        agent_stat_deltas={"carry_limit": 3},
+                    ),
+                )
+            ],
         )
     }
     env.step({"type": "move_to", "target_id": "market"})
@@ -284,16 +300,24 @@ def test_call_action_accepts_top_level_action_name(minimal_world_state):
     assert env.state.agent.stats == {"carry_limit": 5}
 
 
-def test_call_action_rejects_legacy_args_action_format(minimal_world_state):
+def test_call_action_rejects_missing_action_name_in_args(minimal_world_state):
     env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
     env.reset()
     env.state.objects["counter"].actionable = True
-    env.state.objects["counter"].action_ids = ["rent_cart"]
-    env.state.objects["counter"].action_effects = {
-        "rent_cart": ObjectActionEffect(
-            message="Rented a hand cart.",
-            money_delta=-4,
-            required_money=4,
+    env.state.objects["counter"].callable_actions = {
+        "rent_cart": CallableActionDefinition(
+            description="",
+            arguments={},
+            routes=[
+                CallableActionRoute(
+                    match={},
+                    effect=ObjectActionEffect(
+                        message="Rented a hand cart.",
+                        money_delta=-4,
+                        required_money=4,
+                    ),
+                )
+            ],
         )
     }
     env.step({"type": "move_to", "target_id": "market"})
@@ -401,13 +425,21 @@ def test_call_action_agent_stat_deltas_update_state_and_payload(minimal_world_st
     env.reset()
     env.state.agent.stats = {"carry_limit": 2}
     env.state.objects["counter"].actionable = True
-    env.state.objects["counter"].action_ids = ["rent_cart"]
-    env.state.objects["counter"].action_effects = {
-        "rent_cart": ObjectActionEffect(
-            message="Rented a hand cart.",
-            money_delta=-4,
-            required_money=4,
-            agent_stat_deltas={"carry_limit": 3},
+    env.state.objects["counter"].callable_actions = {
+        "rent_cart": CallableActionDefinition(
+            description="",
+            arguments={},
+            routes=[
+                CallableActionRoute(
+                    match={},
+                    effect=ObjectActionEffect(
+                        message="Rented a hand cart.",
+                        money_delta=-4,
+                        required_money=4,
+                        agent_stat_deltas={"carry_limit": 3},
+                    ),
+                )
+            ],
         )
     }
     env.step({"type": "move_to", "target_id": "market"})
@@ -424,15 +456,32 @@ def test_call_action_can_reduce_carry_limit_to_zero_without_dropping_the_stat(mi
     env.reset()
     env.state.agent.stats = {"carry_limit": 1}
     env.state.objects["counter"].actionable = True
-    env.state.objects["counter"].action_ids = ["disable_bag", "load_item"]
-    env.state.objects["counter"].action_effects = {
-        "disable_bag": ObjectActionEffect(
-            message="Disabled the bag.",
-            agent_stat_deltas={"carry_limit": -1},
+    env.state.objects["counter"].callable_actions = {
+        "disable_bag": CallableActionDefinition(
+            description="",
+            arguments={},
+            routes=[
+                CallableActionRoute(
+                    match={},
+                    effect=ObjectActionEffect(
+                        message="Disabled the bag.",
+                        agent_stat_deltas={"carry_limit": -1},
+                    ),
+                )
+            ],
         ),
-        "load_item": ObjectActionEffect(
-            message="Tried to load one item.",
-            inventory_delta={"apple": 1},
+        "load_item": CallableActionDefinition(
+            description="",
+            arguments={},
+            routes=[
+                CallableActionRoute(
+                    match={},
+                    effect=ObjectActionEffect(
+                        message="Tried to load one item.",
+                        inventory_delta={"apple": 1},
+                    ),
+                )
+            ],
         ),
     }
     env.step({"type": "move_to", "target_id": "market"})
@@ -453,15 +502,32 @@ def test_call_action_clamps_negative_carry_limit_to_zero(minimal_world_state):
     env.reset()
     env.state.agent.stats = {"carry_limit": 1}
     env.state.objects["counter"].actionable = True
-    env.state.objects["counter"].action_ids = ["over_disable_bag", "check_zero_gate"]
-    env.state.objects["counter"].action_effects = {
-        "over_disable_bag": ObjectActionEffect(
-            message="Over-disabled the bag.",
-            agent_stat_deltas={"carry_limit": -2},
+    env.state.objects["counter"].callable_actions = {
+        "over_disable_bag": CallableActionDefinition(
+            description="",
+            arguments={},
+            routes=[
+                CallableActionRoute(
+                    match={},
+                    effect=ObjectActionEffect(
+                        message="Over-disabled the bag.",
+                        agent_stat_deltas={"carry_limit": -2},
+                    ),
+                )
+            ],
         ),
-        "check_zero_gate": ObjectActionEffect(
-            message="Zero-capacity gate passed.",
-            required_agent_stats={"carry_limit": 0},
+        "check_zero_gate": CallableActionDefinition(
+            description="",
+            arguments={},
+            routes=[
+                CallableActionRoute(
+                    match={},
+                    effect=ObjectActionEffect(
+                        message="Zero-capacity gate passed.",
+                        required_agent_stats={"carry_limit": 0},
+                    ),
+                )
+            ],
         ),
     }
     env.step({"type": "move_to", "target_id": "market"})
@@ -479,16 +545,24 @@ def test_call_action_reports_temporarily_unavailable_when_disabled_by_dynamic_ru
     state = minimal_world_state.model_copy(deep=True)
     state.agent.location_id = "market"
     state.objects["counter"].actionable = True
-    state.objects["counter"].action_ids = ["buy_snack"]
-    state.objects["counter"].visible_state = {"open": True}
-    state.objects["counter"].action_effects = {
-        "buy_snack": ObjectActionEffect(
-            message="Bought a snack.",
-            required_money=2,
-            money_delta=-2,
-            inventory_delta={"snack": 1},
+    state.objects["counter"].callable_actions = {
+        "buy_snack": CallableActionDefinition(
+            description="",
+            arguments={},
+            routes=[
+                CallableActionRoute(
+                    match={},
+                    effect=ObjectActionEffect(
+                        message="Bought a snack.",
+                        required_money=2,
+                        money_delta=-2,
+                        inventory_delta={"snack": 1},
+                    ),
+                )
+            ],
         )
     }
+    state.objects["counter"].visible_state = {"open": True}
     state.dynamic_rules = [
         DynamicRule(
             rule_id="counter_closed_early",
@@ -523,16 +597,24 @@ def test_call_action_can_run_when_higher_priority_rule_reenables_action(minimal_
     state.agent.money = 5
     state.current_time = (9 * 60) + 15
     state.objects["counter"].actionable = True
-    state.objects["counter"].action_ids = ["buy_snack"]
-    state.objects["counter"].visible_state = {"open": True}
-    state.objects["counter"].action_effects = {
-        "buy_snack": ObjectActionEffect(
-            message="Bought a snack.",
-            required_money=2,
-            money_delta=-2,
-            inventory_delta={"snack": 1},
+    state.objects["counter"].callable_actions = {
+        "buy_snack": CallableActionDefinition(
+            description="",
+            arguments={},
+            routes=[
+                CallableActionRoute(
+                    match={},
+                    effect=ObjectActionEffect(
+                        message="Bought a snack.",
+                        required_money=2,
+                        money_delta=-2,
+                        inventory_delta={"snack": 1},
+                    ),
+                )
+            ],
         )
     }
+    state.objects["counter"].visible_state = {"open": True}
     state.dynamic_rules = [
         DynamicRule(
             rule_id="counter_closed",
@@ -635,12 +717,20 @@ def test_world_rules_and_success_termination_apply_after_action(minimal_world_st
     env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
     env.reset()
     env.state.objects["counter"].actionable = True
-    env.state.objects["counter"].action_ids = ["buy_apple"]
-    env.state.objects["counter"].action_effects = {
-        "buy_apple": ObjectActionEffect(
-            message="Purchased an apple.",
-            set_visible_state={"sold_out": True},
-            set_world_flags={"apple_bought": True},
+    env.state.objects["counter"].callable_actions = {
+        "buy_apple": CallableActionDefinition(
+            description="",
+            arguments={},
+            routes=[
+                CallableActionRoute(
+                    match={},
+                    effect=ObjectActionEffect(
+                        message="Purchased an apple.",
+                        set_visible_state={"sold_out": True},
+                        set_world_flags={"apple_bought": True},
+                    ),
+                )
+            ],
         )
     }
     env.state.locations["market"].object_ids = ["counter"]
@@ -670,11 +760,19 @@ def test_event_rules_support_condition_dsl_composition(minimal_world_state):
     env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
     env.reset()
     env.state.objects["counter"].actionable = True
-    env.state.objects["counter"].action_ids = ["buy_apple"]
-    env.state.objects["counter"].action_effects = {
-        "buy_apple": ObjectActionEffect(
-            message="Purchased an apple.",
-            set_world_flags={"apple_bought": True},
+    env.state.objects["counter"].callable_actions = {
+        "buy_apple": CallableActionDefinition(
+            description="",
+            arguments={},
+            routes=[
+                CallableActionRoute(
+                    match={},
+                    effect=ObjectActionEffect(
+                        message="Purchased an apple.",
+                        set_world_flags={"apple_bought": True},
+                    ),
+                )
+            ],
         )
     }
     env.state.event_rules = [
@@ -703,12 +801,20 @@ def test_call_action_can_apply_money_delta_and_reports_net_step_delta(minimal_wo
     env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
     env.reset()
     env.state.objects["counter"].actionable = True
-    env.state.objects["counter"].action_ids = ["sell_snack"]
-    env.state.objects["counter"].action_effects = {
-        "sell_snack": ObjectActionEffect(
-            message="Sold a snack.",
-            money_delta=7,
-            set_visible_state={"last_sale": "snack"},
+    env.state.objects["counter"].callable_actions = {
+        "sell_snack": CallableActionDefinition(
+            description="",
+            arguments={},
+            routes=[
+                CallableActionRoute(
+                    match={},
+                    effect=ObjectActionEffect(
+                        message="Sold a snack.",
+                        money_delta=7,
+                        set_visible_state={"last_sale": "snack"},
+                    ),
+                )
+            ],
         )
     }
     env.step({"type": "move_to", "target_id": "market"})
@@ -732,11 +838,19 @@ def test_inventory_capacity_is_unlimited_when_carry_limit_is_absent(minimal_worl
     env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
     env.reset()
     env.state.objects["counter"].actionable = True
-    env.state.objects["counter"].action_ids = ["buy_bulk"]
-    env.state.objects["counter"].action_effects = {
-        "buy_bulk": ObjectActionEffect(
-            message="Bought a large bulk order.",
-            inventory_delta={"apple": 6},
+    env.state.objects["counter"].callable_actions = {
+        "buy_bulk": CallableActionDefinition(
+            description="",
+            arguments={},
+            routes=[
+                CallableActionRoute(
+                    match={},
+                    effect=ObjectActionEffect(
+                        message="Bought a large bulk order.",
+                        inventory_delta={"apple": 6},
+                    ),
+                )
+            ],
         )
     }
     env.step({"type": "move_to", "target_id": "market"})
@@ -752,12 +866,20 @@ def test_object_action_inventory_delta_respects_carry_limit(minimal_world_state)
     env.reset()
     env.state.agent.stats = {"carry_limit": 1}
     env.state.objects["counter"].actionable = True
-    env.state.objects["counter"].action_ids = ["buy_bulk"]
-    env.state.objects["counter"].action_effects = {
-        "buy_bulk": ObjectActionEffect(
-            message="Bought a large bulk order.",
-            inventory_delta={"apple": 2},
-            set_visible_state={"sale": "closed"},
+    env.state.objects["counter"].callable_actions = {
+        "buy_bulk": CallableActionDefinition(
+            description="",
+            arguments={},
+            routes=[
+                CallableActionRoute(
+                    match={},
+                    effect=ObjectActionEffect(
+                        message="Bought a large bulk order.",
+                        inventory_delta={"apple": 2},
+                        set_visible_state={"sale": "closed"},
+                    ),
+                )
+            ],
         )
     }
     env.step({"type": "move_to", "target_id": "market"})
@@ -775,12 +897,20 @@ def test_object_action_can_increase_carry_limit_and_add_inventory_in_same_step(m
     env.reset()
     env.state.agent.stats = {"carry_limit": 1}
     env.state.objects["counter"].actionable = True
-    env.state.objects["counter"].action_ids = ["upgrade_and_load"]
-    env.state.objects["counter"].action_effects = {
-        "upgrade_and_load": ObjectActionEffect(
-            message="Expanded the bag and loaded produce.",
-            agent_stat_deltas={"carry_limit": 1},
-            inventory_delta={"apple": 2},
+    env.state.objects["counter"].callable_actions = {
+        "upgrade_and_load": CallableActionDefinition(
+            description="",
+            arguments={},
+            routes=[
+                CallableActionRoute(
+                    match={},
+                    effect=ObjectActionEffect(
+                        message="Expanded the bag and loaded produce.",
+                        agent_stat_deltas={"carry_limit": 1},
+                        inventory_delta={"apple": 2},
+                    ),
+                )
+            ],
         )
     }
     env.step({"type": "move_to", "target_id": "market"})
@@ -798,12 +928,20 @@ def test_capacity_decrease_is_validated_against_projected_carry_limit(minimal_wo
     env.state.agent.stats = {"carry_limit": 3}
     env.state.agent.inventory = {"apple": 2}
     env.state.objects["counter"].actionable = True
-    env.state.objects["counter"].action_ids = ["shrink_bag"]
-    env.state.objects["counter"].action_effects = {
-        "shrink_bag": ObjectActionEffect(
-            message="Shrank the bag.",
-            agent_stat_deltas={"carry_limit": -2},
-            set_visible_state={"bag_size": "small"},
+    env.state.objects["counter"].callable_actions = {
+        "shrink_bag": CallableActionDefinition(
+            description="",
+            arguments={},
+            routes=[
+                CallableActionRoute(
+                    match={},
+                    effect=ObjectActionEffect(
+                        message="Shrank the bag.",
+                        agent_stat_deltas={"carry_limit": -2},
+                        set_visible_state={"bag_size": "small"},
+                    ),
+                )
+            ],
         )
     }
     env.step({"type": "move_to", "target_id": "market"})
@@ -853,11 +991,19 @@ def test_call_action_inventory_validation_uses_net_step_delta(minimal_world_stat
     env.state.agent.inventory = {"apple": 1}
     env.state.action_costs["call_action"] = ActionCost(inventory_delta={"apple": -1})
     env.state.objects["counter"].actionable = True
-    env.state.objects["counter"].action_ids = ["swap_item"]
-    env.state.objects["counter"].action_effects = {
-        "swap_item": ObjectActionEffect(
-            message="Swapped the carried item.",
-            inventory_delta={"banana": 1},
+    env.state.objects["counter"].callable_actions = {
+        "swap_item": CallableActionDefinition(
+            description="",
+            arguments={},
+            routes=[
+                CallableActionRoute(
+                    match={},
+                    effect=ObjectActionEffect(
+                        message="Swapped the carried item.",
+                        inventory_delta={"banana": 1},
+                    ),
+                )
+            ],
         )
     }
     env.step({"type": "move_to", "target_id": "market"})
@@ -875,11 +1021,19 @@ def test_call_action_net_inventory_commit_uses_merged_delta_for_same_item(minima
     env.state.agent.inventory = {"apple": 1}
     env.state.action_costs["call_action"] = ActionCost(inventory_delta={"apple": 1})
     env.state.objects["counter"].actionable = True
-    env.state.objects["counter"].action_ids = ["consume_and_rebate"]
-    env.state.objects["counter"].action_effects = {
-        "consume_and_rebate": ObjectActionEffect(
-            message="Consumed apples with a rebate.",
-            inventory_delta={"apple": -2},
+    env.state.objects["counter"].callable_actions = {
+        "consume_and_rebate": CallableActionDefinition(
+            description="",
+            arguments={},
+            routes=[
+                CallableActionRoute(
+                    match={},
+                    effect=ObjectActionEffect(
+                        message="Consumed apples with a rebate.",
+                        inventory_delta={"apple": -2},
+                    ),
+                )
+            ],
         )
     }
     env.step({"type": "move_to", "target_id": "market"})
@@ -897,11 +1051,19 @@ def test_call_action_money_validation_uses_net_step_delta(minimal_world_state):
     env.state.agent.money = 1
     env.state.action_costs["call_action"] = ActionCost(money_delta=2)
     env.state.objects["counter"].actionable = True
-    env.state.objects["counter"].action_ids = ["rebated_fee"]
-    env.state.objects["counter"].action_effects = {
-        "rebated_fee": ObjectActionEffect(
-            message="Paid a fee with a matching rebate.",
-            money_delta=-2,
+    env.state.objects["counter"].callable_actions = {
+        "rebated_fee": CallableActionDefinition(
+            description="",
+            arguments={},
+            routes=[
+                CallableActionRoute(
+                    match={},
+                    effect=ObjectActionEffect(
+                        message="Paid a fee with a matching rebate.",
+                        money_delta=-2,
+                    ),
+                )
+            ],
         )
     }
     env.step({"type": "move_to", "target_id": "market"})
@@ -919,13 +1081,21 @@ def test_combined_object_and_action_cost_inventory_delta_rolls_back_state(minima
     env.state.agent.stats = {"carry_limit": 1}
     env.state.action_costs["call_action"] = ActionCost(inventory_delta={"bonus_ticket": 1})
     env.state.objects["counter"].actionable = True
-    env.state.objects["counter"].action_ids = ["buy_box"]
-    env.state.objects["counter"].action_effects = {
-        "buy_box": ObjectActionEffect(
-            message="Bought one boxed order.",
-            inventory_delta={"apple": 1},
-            set_visible_state={"sale": "posted"},
-            set_world_flags={"box_bought": True},
+    env.state.objects["counter"].callable_actions = {
+        "buy_box": CallableActionDefinition(
+            description="",
+            arguments={},
+            routes=[
+                CallableActionRoute(
+                    match={},
+                    effect=ObjectActionEffect(
+                        message="Bought one boxed order.",
+                        inventory_delta={"apple": 1},
+                        set_visible_state={"sale": "posted"},
+                        set_world_flags={"box_bought": True},
+                    ),
+                )
+            ],
         )
     }
     env.step({"type": "move_to", "target_id": "market"})
@@ -945,11 +1115,19 @@ def test_step_payload_visible_state_is_detached_from_runtime_state(minimal_world
     env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
     env.reset()
     env.state.objects["counter"].actionable = True
-    env.state.objects["counter"].action_ids = ["sell_snack"]
-    env.state.objects["counter"].action_effects = {
-        "sell_snack": ObjectActionEffect(
-            message="Sold a snack.",
-            set_visible_state={"sale": {"item": "snack", "history": ["snack"]}},
+    env.state.objects["counter"].callable_actions = {
+        "sell_snack": CallableActionDefinition(
+            description="",
+            arguments={},
+            routes=[
+                CallableActionRoute(
+                    match={},
+                    effect=ObjectActionEffect(
+                        message="Sold a snack.",
+                        set_visible_state={"sale": {"item": "snack", "history": ["snack"]}},
+                    ),
+                )
+            ],
         )
     }
     env.step({"type": "move_to", "target_id": "market"})
@@ -1008,15 +1186,23 @@ def test_call_action_can_apply_energy_inventory_and_location_changes(minimal_wor
     env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
     env.reset()
     env.state.objects["counter"].actionable = True
-    env.state.objects["counter"].action_ids = ["buy_ticket"]
-    env.state.objects["counter"].action_effects = {
-        "buy_ticket": ObjectActionEffect(
-            message="Bought a return ticket.",
-            required_money=6,
-            money_delta=-6,
-            energy_delta=5,
-            inventory_delta={"ticket": 1},
-            move_to_location_id="plaza",
+    env.state.objects["counter"].callable_actions = {
+        "buy_ticket": CallableActionDefinition(
+            description="",
+            arguments={},
+            routes=[
+                CallableActionRoute(
+                    match={},
+                    effect=ObjectActionEffect(
+                        message="Bought a return ticket.",
+                        required_money=6,
+                        money_delta=-6,
+                        energy_delta=5,
+                        inventory_delta={"ticket": 1},
+                        move_to_location_id="plaza",
+                    ),
+                )
+            ],
         )
     }
     env.step({"type": "move_to", "target_id": "market"})
@@ -1043,11 +1229,19 @@ def test_call_action_updates_observation_when_visible_state_changes_without_reso
     env.reset()
     env.state.action_costs["call_action"] = ActionCost()
     env.state.objects["counter"].actionable = True
-    env.state.objects["counter"].action_ids = ["mark_sold"]
-    env.state.objects["counter"].action_effects = {
-        "mark_sold": ObjectActionEffect(
-            message="Marked the counter as sold out.",
-            set_visible_state={"open": False, "sold_out": True},
+    env.state.objects["counter"].callable_actions = {
+        "mark_sold": CallableActionDefinition(
+            description="",
+            arguments={},
+            routes=[
+                CallableActionRoute(
+                    match={},
+                    effect=ObjectActionEffect(
+                        message="Marked the counter as sold out.",
+                        set_visible_state={"open": False, "sold_out": True},
+                    ),
+                )
+            ],
         )
     }
     env.step({"type": "move_to", "target_id": "market"})
@@ -1077,11 +1271,19 @@ def test_call_action_teleport_ignores_area_reachability(minimal_world_state):
     env = TownBenchEnv(state)
     env.reset()
     env.state.objects["counter"].actionable = True
-    env.state.objects["counter"].action_ids = ["enter_vault"]
-    env.state.objects["counter"].action_effects = {
-        "enter_vault": ObjectActionEffect(
-            message="Escorted into the vault.",
-            move_to_location_id="vault",
+    env.state.objects["counter"].callable_actions = {
+        "enter_vault": CallableActionDefinition(
+            description="",
+            arguments={},
+            routes=[
+                CallableActionRoute(
+                    match={},
+                    effect=ObjectActionEffect(
+                        message="Escorted into the vault.",
+                        move_to_location_id="vault",
+                    ),
+                )
+            ],
         )
     }
     env.step({"type": "move_to", "target_id": "market"})
@@ -1097,13 +1299,21 @@ def test_call_action_rejects_when_required_inventory_is_missing(minimal_world_st
     env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
     env.reset()
     env.state.objects["counter"].actionable = True
-    env.state.objects["counter"].action_ids = ["repair_device"]
-    env.state.objects["counter"].action_effects = {
-        "repair_device": ObjectActionEffect(
-            message="Repaired device.",
-            required_inventory={"repair_kit": 1},
-            inventory_delta={"repair_kit": -1},
-            money_delta=9,
+    env.state.objects["counter"].callable_actions = {
+        "repair_device": CallableActionDefinition(
+            description="",
+            arguments={},
+            routes=[
+                CallableActionRoute(
+                    match={},
+                    effect=ObjectActionEffect(
+                        message="Repaired device.",
+                        required_inventory={"repair_kit": 1},
+                        inventory_delta={"repair_kit": -1},
+                        money_delta=9,
+                    ),
+                )
+            ],
         )
     }
     env.step({"type": "move_to", "target_id": "market"})
@@ -1121,12 +1331,20 @@ def test_call_action_rejects_when_money_would_drop_below_zero(minimal_world_stat
     env.reset()
     env.state.agent.money = 4
     env.state.objects["counter"].actionable = True
-    env.state.objects["counter"].action_ids = ["buy_machine"]
-    env.state.objects["counter"].action_effects = {
-        "buy_machine": ObjectActionEffect(
-            message="Bought a machine.",
-            required_money=5,
-            money_delta=-5,
+    env.state.objects["counter"].callable_actions = {
+        "buy_machine": CallableActionDefinition(
+            description="",
+            arguments={},
+            routes=[
+                CallableActionRoute(
+                    match={},
+                    effect=ObjectActionEffect(
+                        message="Bought a machine.",
+                        required_money=5,
+                        money_delta=-5,
+                    ),
+                )
+            ],
         )
     }
     env.step({"type": "move_to", "target_id": "market"})

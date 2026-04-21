@@ -172,15 +172,18 @@ objects:
     visible_state:
       tea_bundle_price: 4
     actionable: true
-    action_ids: ["buy_tea_bundle"]
-    action_effects:
+    callable_actions:
       buy_tea_bundle:
-        message: "You bought one tea bundle."
-        required_money: 4
-        money_delta: -4
-        inventory_delta:
-          tea_bundle: 1
-
+        description: ""
+        arguments: {}
+        routes:
+          - match: {}
+            effect:
+                    message: "You bought one tea bundle."
+                    required_money: 4
+                    money_delta: -4
+                    inventory_delta:
+                      tea_bundle: 1
   - object_id: ingredient_seller
     name: Ingredient Seller
     object_type: stall
@@ -189,15 +192,18 @@ objects:
     visible_state:
       meal_ingredients_price: 2
     actionable: true
-    action_ids: ["buy_meal_ingredients"]
-    action_effects:
+    callable_actions:
       buy_meal_ingredients:
-        message: "You bought one set of meal ingredients."
-        required_money: 2
-        money_delta: -2
-        inventory_delta:
-          meal_ingredients: 1
-
+        description: ""
+        arguments: {}
+        routes:
+          - match: {}
+            effect:
+                    message: "You bought one set of meal ingredients."
+                    required_money: 2
+                    money_delta: -2
+                    inventory_delta:
+                      meal_ingredients: 1
   - object_id: bargain_bin
     name: Bargain Bin
     object_type: bin
@@ -207,15 +213,18 @@ objects:
       dusty_trinket_price: 1
       buyer_bid: 0
     actionable: true
-    action_ids: ["buy_dusty_trinket"]
-    action_effects:
+    callable_actions:
       buy_dusty_trinket:
-        message: "You bought one dusty trinket."
-        required_money: 1
-        money_delta: -1
-        inventory_delta:
-          dusty_trinket: 1
-
+        description: ""
+        arguments: {}
+        routes:
+          - match: {}
+            effect:
+                    message: "You bought one dusty trinket."
+                    required_money: 1
+                    money_delta: -1
+                    inventory_delta:
+                      dusty_trinket: 1
   - object_id: tea_batch_crate
     name: Tea Batch Crate
     object_type: crate
@@ -225,17 +234,20 @@ objects:
       batch_price: 11
       batch_load: 5
     actionable: true
-    action_ids: ["buy_tea_batch"]
-    action_effects:
+    callable_actions:
       buy_tea_batch:
-        message: "You bought a bundled tea batch with two tea bundles, two sleeves and one fuel canister."
-        required_money: 11
-        money_delta: -11
-        inventory_delta:
-          tea_bundle: 2
-          packaging_sleeve: 2
-          fuel_canister: 1
-
+        description: ""
+        arguments: {}
+        routes:
+          - match: {}
+            effect:
+                    message: "You bought a bundled tea batch with two tea bundles, two sleeves and one fuel canister."
+                    required_money: 11
+                    money_delta: -11
+                    inventory_delta:
+                      tea_bundle: 2
+                      packaging_sleeve: 2
+                      fuel_canister: 1
   - object_id: goods_buyer
     name: Goods Buyer
     object_type: buyer
@@ -278,18 +290,21 @@ objects:
     visible_state:
       fuel_per_batch: 1
     actionable: true
-    action_ids: ["brew_tea"]
-    action_effects:
+    callable_actions:
       brew_tea:
-        message: "You brewed one tea bundle into prepared tea."
-        required_inventory:
-          tea_bundle: 1
-          fuel_canister: 1
-        inventory_delta:
-          tea_bundle: -1
-          fuel_canister: -1
-          brewed_tea: 1
-
+        description: ""
+        arguments: {}
+        routes:
+          - match: {}
+            effect:
+                    message: "You brewed one tea bundle into prepared tea."
+                    required_inventory:
+                      tea_bundle: 1
+                      fuel_canister: 1
+                    inventory_delta:
+                      tea_bundle: -1
+                      fuel_canister: -1
+                      brewed_tea: 1
   - object_id: packaging_table
     name: Packaging Table
     object_type: table
@@ -298,34 +313,40 @@ objects:
     visible_state:
       sleeve_per_batch: 1
     actionable: true
-    action_ids: ["pack_tea"]
-    action_effects:
+    callable_actions:
       pack_tea:
-        message: "You packed one brewed tea lot."
-        required_inventory:
-          brewed_tea: 1
-          packaging_sleeve: 1
-        inventory_delta:
-          brewed_tea: -1
-          packaging_sleeve: -1
-          packed_tea: 1
-
+        description: ""
+        arguments: {}
+        routes:
+          - match: {}
+            effect:
+                    message: "You packed one brewed tea lot."
+                    required_inventory:
+                      brewed_tea: 1
+                      packaging_sleeve: 1
+                    inventory_delta:
+                      brewed_tea: -1
+                      packaging_sleeve: -1
+                      packed_tea: 1
   - object_id: meal_prep_table
     name: Meal Prep Table
     object_type: table
     location_id: meal_prep_room
     summary: "A prep table for turning cheap ingredients into deliverable meal boxes."
     actionable: true
-    action_ids: ["assemble_meal_box"]
-    action_effects:
+    callable_actions:
       assemble_meal_box:
-        message: "You assembled one meal box."
-        required_inventory:
-          meal_ingredients: 1
-        inventory_delta:
-          meal_ingredients: -1
-          meal_box: 1
-
+        description: ""
+        arguments: {}
+        routes:
+          - match: {}
+            effect:
+                    message: "You assembled one meal box."
+                    required_inventory:
+                      meal_ingredients: 1
+                    inventory_delta:
+                      meal_ingredients: -1
+                      meal_box: 1
   - object_id: repair_bench
     name: Repair Bench
     object_type: bench
@@ -334,16 +355,19 @@ objects:
     visible_state:
       service_fee: 16
     actionable: true
-    action_ids: ["service_kettle"]
-    action_effects:
+    callable_actions:
       service_kettle:
-        message: "You completed one depot repair and received a signed service ticket."
-        required_inventory:
-          repair_part: 1
-        inventory_delta:
-          repair_part: -1
-          serviced_device_ticket: 1
-
+        description: ""
+        arguments: {}
+        routes:
+          - match: {}
+            effect:
+                    message: "You completed one depot repair and received a signed service ticket."
+                    required_inventory:
+                      repair_part: 1
+                    inventory_delta:
+                      repair_part: -1
+                      serviced_device_ticket: 1
   - object_id: meal_counter
     name: Meal Counter
     object_type: counter
@@ -353,21 +377,29 @@ objects:
       meal_box_payout: 5
       hot_meal_price: 4
     actionable: true
-    action_ids: ["sell_meal_box", "buy_hot_meal"]
-    action_effects:
+    callable_actions:
       sell_meal_box:
-        message: "You delivered one meal box to the cafe pickup window."
-        required_inventory:
-          meal_box: 1
-        money_delta: 5
-        inventory_delta:
-          meal_box: -1
+        description: ""
+        arguments: {}
+        routes:
+          - match: {}
+            effect:
+                    message: "You delivered one meal box to the cafe pickup window."
+                    required_inventory:
+                      meal_box: 1
+                    money_delta: 5
+                    inventory_delta:
+                      meal_box: -1
       buy_hot_meal:
-        message: "You bought a hot meal and recovered energy."
-        required_money: 4
-        money_delta: -4
-        energy_delta: 26
-
+        description: ""
+        arguments: {}
+        routes:
+          - match: {}
+            effect:
+                    message: "You bought a hot meal and recovered energy."
+                    required_money: 4
+                    money_delta: -4
+                    energy_delta: 26
   - object_id: supply_counter
     name: Supply Counter
     object_type: counter
@@ -410,21 +442,24 @@ objects:
       upgrade_price: 6
       upgrade_status: available
     actionable: true
-    action_ids: ["buy_locker_upgrade"]
-    action_effects:
+    callable_actions:
       buy_locker_upgrade:
-        message: "You paid for the locker upgrade and your carry limit increased by 2."
-        required_money: 6
-        required_world_flags:
-          locker_upgrade_purchased: false
-        money_delta: -6
-        agent_stat_deltas:
-          carry_limit: 2
-        set_visible_state:
-          upgrade_status: purchased
-        set_world_flags:
-          locker_upgrade_purchased: true
-
+        description: ""
+        arguments: {}
+        routes:
+          - match: {}
+            effect:
+                    message: "You paid for the locker upgrade and your carry limit increased by 2."
+                    required_money: 6
+                    required_world_flags:
+                      locker_upgrade_purchased: false
+                    money_delta: -6
+                    agent_stat_deltas:
+                      carry_limit: 2
+                    set_visible_state:
+                      upgrade_status: purchased
+                    set_world_flags:
+                      locker_upgrade_purchased: true
   - object_id: shelf_space_ledger
     name: Shelf Space Ledger
     object_type: ledger
@@ -441,16 +476,19 @@ objects:
     visible_state:
       serviced_device_ticket_payout: 16
     actionable: true
-    action_ids: ["collect_service_fee"]
-    action_effects:
+    callable_actions:
       collect_service_fee:
-        message: "You handed over the service ticket and collected the repair payout."
-        required_inventory:
-          serviced_device_ticket: 1
-        money_delta: 16
-        inventory_delta:
-          serviced_device_ticket: -1
-
+        description: ""
+        arguments: {}
+        routes:
+          - match: {}
+            effect:
+                    message: "You handed over the service ticket and collected the repair payout."
+                    required_inventory:
+                      serviced_device_ticket: 1
+                    money_delta: 16
+                    inventory_delta:
+                      serviced_device_ticket: -1
   - object_id: repair_queue
     name: Repair Queue
     object_type: board
@@ -467,15 +505,18 @@ objects:
     visible_state:
       fuel_canister_price: 2
     actionable: true
-    action_ids: ["buy_fuel_canister"]
-    action_effects:
+    callable_actions:
       buy_fuel_canister:
-        message: "You bought one fuel canister."
-        required_money: 2
-        money_delta: -2
-        inventory_delta:
-          fuel_canister: 1
-
+        description: ""
+        arguments: {}
+        routes:
+          - match: {}
+            effect:
+                    message: "You bought one fuel canister."
+                    required_money: 2
+                    money_delta: -2
+                    inventory_delta:
+                      fuel_canister: 1
   - object_id: usage_notice
     name: Usage Notice
     object_type: notice
@@ -490,42 +531,51 @@ objects:
     location_id: kitchen
     summary: "A pantry shelf where boxed meals can be eaten instead of sold."
     actionable: true
-    action_ids: ["eat_meal_box"]
-    action_effects:
+    callable_actions:
       eat_meal_box:
-        message: "You ate one meal box at home and recovered energy."
-        required_inventory:
-          meal_box: 1
-        energy_delta: 20
-        inventory_delta:
-          meal_box: -1
-
+        description: ""
+        arguments: {}
+        routes:
+          - match: {}
+            effect:
+                    message: "You ate one meal box at home and recovered energy."
+                    required_inventory:
+                      meal_box: 1
+                    energy_delta: 20
+                    inventory_delta:
+                      meal_box: -1
   - object_id: bed
     name: Bed
     object_type: bed
     location_id: bedroom
     summary: "A plain bed that offers a slow but free recovery option."
     actionable: true
-    action_ids: ["sleep_shift"]
-    action_effects:
+    callable_actions:
       sleep_shift:
-        message: "You took a rest at home and recovered energy."
-        energy_delta: 40
-
+        description: ""
+        arguments: {}
+        routes:
+          - match: {}
+            effect:
+                    message: "You took a rest at home and recovered energy."
+                    energy_delta: 40
   - object_id: barista
     name: Barista
     object_type: counter
     location_id: coffee_counter
     summary: "A barista selling quick coffee to workers who need to get moving again."
     actionable: true
-    action_ids: ["buy_coffee"]
-    action_effects:
+    callable_actions:
       buy_coffee:
-        message: "You bought a coffee and recovered energy."
-        required_money: 3
-        money_delta: -3
-        energy_delta: 16
-
+        description: ""
+        arguments: {}
+        routes:
+          - match: {}
+            effect:
+                    message: "You bought a coffee and recovered energy."
+                    required_money: 3
+                    money_delta: -3
+                    energy_delta: 16
   - object_id: cafe_buyer
     name: Cafe Buyer
     object_type: buyer
@@ -534,16 +584,19 @@ objects:
     visible_state:
       packed_tea_payout: 12
     actionable: true
-    action_ids: ["sell_packed_tea"]
-    action_effects:
+    callable_actions:
       sell_packed_tea:
-        message: "You sold one packed tea lot at the cafe window."
-        required_inventory:
-          packed_tea: 1
-        money_delta: 12
-        inventory_delta:
-          packed_tea: -1
-
+        description: ""
+        arguments: {}
+        routes:
+          - match: {}
+            effect:
+                    message: "You sold one packed tea lot at the cafe window."
+                    required_inventory:
+                      packed_tea: 1
+                    money_delta: 12
+                    inventory_delta:
+                      packed_tea: -1
 action_costs:
   move_to:
     time_delta: 6

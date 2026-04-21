@@ -100,14 +100,12 @@ class ScenarioObjectSource(BaseModel):
     location_id: str
     summary: str
     visible_state: dict[str, Any] = Field(default_factory=dict)
-    action_ids: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
     inspectable: bool = True
     readable: bool = False
     actionable: bool = False
     resource_content: str | None = None
     resource_file: str | None = None
-    action_effects: dict[str, ObjectActionEffect] = Field(default_factory=dict)
     callable_actions: dict[str, CallableActionDefinition] = Field(default_factory=dict)
 
     @model_validator(mode="after")
@@ -126,13 +124,11 @@ class ScenarioObjectSource(BaseModel):
             location_id=self.location_id,
             summary=self.summary,
             visible_state=deepcopy(self.visible_state),
-            action_ids=list(self.action_ids),
             tags=list(self.tags),
             inspectable=self.inspectable,
             readable=self.readable,
-            actionable=self.actionable or bool(self.action_effects) or bool(self.callable_actions),
+            actionable=self.actionable or bool(self.callable_actions),
             resource_content=resource_content,
-            action_effects={key: effect.model_copy(deep=True) for key, effect in self.action_effects.items()},
             callable_actions={
                 key: action.model_copy(deep=True)
                 for key, action in self.callable_actions.items()

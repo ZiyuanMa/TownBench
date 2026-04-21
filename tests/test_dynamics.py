@@ -1,8 +1,10 @@
 from engine.dynamics import build_effective_object_view, matches_time_window
 from engine.rules import format_time_label, parse_time_label
 from engine.state import (
+    CallableActionDefinition,
     CallableActionMatcher,
     CallableActionOverrideRule,
+    CallableActionRoute,
     DynamicCondition,
     DynamicRule,
     DynamicRuleApplication,
@@ -33,12 +35,29 @@ def test_effective_object_view_applies_overrides_without_mutating_base_state(min
     state = minimal_world_state.model_copy(deep=True)
     state.agent.location_id = "market"
     state.objects["counter"].actionable = True
-    state.objects["counter"].action_ids = ["buy_snack", "buy_drink"]
-    state.objects["counter"].visible_state = {"open": True, "snack_price": 3}
-    state.objects["counter"].action_effects = {
-        "buy_snack": ObjectActionEffect(message="Bought a snack.", required_money=3, money_delta=-3),
-        "buy_drink": ObjectActionEffect(message="Bought a drink.", required_money=2, money_delta=-2),
+    state.objects["counter"].callable_actions = {
+        "buy_snack": CallableActionDefinition(
+            description="",
+            arguments={},
+            routes=[
+                CallableActionRoute(
+                    match={},
+                    effect=ObjectActionEffect(message="Bought a snack.", required_money=3, money_delta=-3),
+                )
+            ],
+        ),
+        "buy_drink": CallableActionDefinition(
+            description="",
+            arguments={},
+            routes=[
+                CallableActionRoute(
+                    match={},
+                    effect=ObjectActionEffect(message="Bought a drink.", required_money=2, money_delta=-2),
+                )
+            ],
+        ),
     }
+    state.objects["counter"].visible_state = {"open": True, "snack_price": 3}
     state.dynamic_rules = [
         DynamicRule(
             rule_id="counter_closed_early",
@@ -90,21 +109,28 @@ def test_effective_object_view_applies_overrides_without_mutating_base_state(min
     assert discount_view.object.callable_actions["buy_snack"].routes[0].effect.money_delta == -1
 
     assert state.objects["counter"].visible_state == {"open": True, "snack_price": 3}
-    assert state.objects["counter"].action_ids == ["buy_snack", "buy_drink"]
-    assert state.objects["counter"].action_effects["buy_snack"].required_money == 3
-    assert state.objects["counter"].action_effects["buy_snack"].money_delta == -3
+    assert list(state.objects["counter"].callable_actions) == ["buy_snack", "buy_drink"]
+    assert state.objects["counter"].callable_actions["buy_snack"].routes[0].effect.required_money == 3
+    assert state.objects["counter"].callable_actions["buy_snack"].routes[0].effect.money_delta == -3
 
 
 def test_higher_priority_rule_can_reenable_action(minimal_world_state):
     state = minimal_world_state.model_copy(deep=True)
     state.agent.location_id = "market"
     state.objects["counter"].actionable = True
-    state.objects["counter"].action_ids = ["buy_snack", "buy_drink"]
-    state.objects["counter"].visible_state = {"open": True}
-    state.objects["counter"].action_effects = {
-        "buy_snack": ObjectActionEffect(message="Bought a snack."),
-        "buy_drink": ObjectActionEffect(message="Bought a drink."),
+    state.objects["counter"].callable_actions = {
+        "buy_snack": CallableActionDefinition(
+            description="",
+            arguments={},
+            routes=[CallableActionRoute(match={}, effect=ObjectActionEffect(message="Bought a snack."))],
+        ),
+        "buy_drink": CallableActionDefinition(
+            description="",
+            arguments={},
+            routes=[CallableActionRoute(match={}, effect=ObjectActionEffect(message="Bought a drink."))],
+        ),
     }
+    state.objects["counter"].visible_state = {"open": True}
     state.dynamic_rules = [
         DynamicRule(
             rule_id="counter_closed",
@@ -156,11 +182,14 @@ def test_higher_priority_disable_keeps_action_closed_even_if_lower_priority_rule
     state = minimal_world_state.model_copy(deep=True)
     state.agent.location_id = "market"
     state.objects["counter"].actionable = True
-    state.objects["counter"].action_ids = ["buy_snack"]
-    state.objects["counter"].visible_state = {"open": True}
-    state.objects["counter"].action_effects = {
-        "buy_snack": ObjectActionEffect(message="Bought a snack."),
+    state.objects["counter"].callable_actions = {
+        "buy_snack": CallableActionDefinition(
+            description="",
+            arguments={},
+            routes=[CallableActionRoute(match={}, effect=ObjectActionEffect(message="Bought a snack."))],
+        ),
     }
+    state.objects["counter"].visible_state = {"open": True}
     state.dynamic_rules = [
         DynamicRule(
             rule_id="early_promo",
@@ -208,11 +237,19 @@ def test_wait_updates_dynamic_observation_window(minimal_world_state):
     state.agent.location_id = "market"
     state.current_time = (8 * 60) + 45
     state.objects["counter"].actionable = True
-    state.objects["counter"].action_ids = ["buy_snack"]
-    state.objects["counter"].visible_state = {"open": True, "snack_price": 3}
-    state.objects["counter"].action_effects = {
-        "buy_snack": ObjectActionEffect(message="Bought a snack.", required_money=3, money_delta=-3),
+    state.objects["counter"].callable_actions = {
+        "buy_snack": CallableActionDefinition(
+            description="",
+            arguments={},
+            routes=[
+                CallableActionRoute(
+                    match={},
+                    effect=ObjectActionEffect(message="Bought a snack.", required_money=3, money_delta=-3),
+                )
+            ],
+        ),
     }
+    state.objects["counter"].visible_state = {"open": True, "snack_price": 3}
     state.dynamic_rules = [
         DynamicRule(
             rule_id="midmorning_discount",
@@ -252,11 +289,14 @@ def test_dynamic_rule_can_combine_time_location_and_inventory_conditions(minimal
     state.agent.location_id = "market"
     state.agent.inventory = {"apple": 1}
     state.objects["counter"].actionable = True
-    state.objects["counter"].action_ids = ["buy_snack"]
-    state.objects["counter"].visible_state = {"promo": False}
-    state.objects["counter"].action_effects = {
-        "buy_snack": ObjectActionEffect(message="Bought a snack."),
+    state.objects["counter"].callable_actions = {
+        "buy_snack": CallableActionDefinition(
+            description="",
+            arguments={},
+            routes=[CallableActionRoute(match={}, effect=ObjectActionEffect(message="Bought a snack."))],
+        ),
     }
+    state.objects["counter"].visible_state = {"promo": False}
     state.dynamic_rules = [
         DynamicRule(
             rule_id="market_inventory_promo",

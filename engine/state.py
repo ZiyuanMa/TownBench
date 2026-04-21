@@ -310,13 +310,11 @@ class WorldObject(BaseModel):
     location_id: str
     summary: str
     visible_state: dict[str, Any] = Field(default_factory=dict)
-    action_ids: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
     inspectable: bool = True
     readable: bool = False
     actionable: bool = False
     resource_content: str | None = None
-    action_effects: dict[str, "ObjectActionEffect"] = Field(default_factory=dict)
     callable_actions: dict[str, "CallableActionDefinition"] = Field(default_factory=dict)
 
 

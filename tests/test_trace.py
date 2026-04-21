@@ -1,5 +1,9 @@
 from runtime.env import TownBenchEnv
-from engine.state import ObjectActionEffect
+from engine.state import (
+    CallableActionDefinition,
+    CallableActionRoute,
+    ObjectActionEffect,
+)
 from scenario.loader import load_scenario
 
 
@@ -38,11 +42,19 @@ def test_trace_records_money_delta_from_object_actions(minimal_world_state):
     env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
     env.reset()
     env.state.objects["counter"].actionable = True
-    env.state.objects["counter"].action_ids = ["sell_snack"]
-    env.state.objects["counter"].action_effects = {
-        "sell_snack": ObjectActionEffect(
-            message="Sold a snack.",
-            money_delta=5,
+    env.state.objects["counter"].callable_actions = {
+        "sell_snack": CallableActionDefinition(
+            description="",
+            arguments={},
+            routes=[
+                CallableActionRoute(
+                    match={},
+                    effect=ObjectActionEffect(
+                        message="Sold a snack.",
+                        money_delta=5,
+                    ),
+                )
+            ],
         )
     }
     env.step({"type": "move_to", "target_id": "market"})
@@ -57,13 +69,21 @@ def test_trace_records_object_inventory_and_energy_deltas(minimal_world_state):
     env = TownBenchEnv(minimal_world_state.model_copy(deep=True))
     env.reset()
     env.state.objects["counter"].actionable = True
-    env.state.objects["counter"].action_ids = ["buy_supply"]
-    env.state.objects["counter"].action_effects = {
-        "buy_supply": ObjectActionEffect(
-            message="Bought one supply crate.",
-            money_delta=-3,
-            energy_delta=6,
-            inventory_delta={"supply_crate": 1},
+    env.state.objects["counter"].callable_actions = {
+        "buy_supply": CallableActionDefinition(
+            description="",
+            arguments={},
+            routes=[
+                CallableActionRoute(
+                    match={},
+                    effect=ObjectActionEffect(
+                        message="Bought one supply crate.",
+                        money_delta=-3,
+                        energy_delta=6,
+                        inventory_delta={"supply_crate": 1},
+                    ),
+                )
+            ],
         )
     }
     env.step({"type": "move_to", "target_id": "market"})

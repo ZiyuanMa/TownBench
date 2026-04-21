@@ -159,12 +159,19 @@ def test_observation_projects_dynamic_visible_state_and_available_actions(minima
     state = minimal_world_state.model_copy(deep=True)
     state.agent.location_id = "market"
     state.objects["counter"].actionable = True
-    state.objects["counter"].action_ids = ["buy_snack", "buy_drink"]
-    state.objects["counter"].visible_state = {"open": True, "snack_price": 3}
-    state.objects["counter"].action_effects = {
-        "buy_snack": ObjectActionEffect(message="Bought a snack."),
-        "buy_drink": ObjectActionEffect(message="Bought a drink."),
+    state.objects["counter"].callable_actions = {
+        "buy_snack": CallableActionDefinition(
+            description="",
+            arguments={},
+            routes=[CallableActionRoute(match={}, effect=ObjectActionEffect(message="Bought a snack."))],
+        ),
+        "buy_drink": CallableActionDefinition(
+            description="",
+            arguments={},
+            routes=[CallableActionRoute(match={}, effect=ObjectActionEffect(message="Bought a drink."))],
+        ),
     }
+    state.objects["counter"].visible_state = {"open": True, "snack_price": 3}
     state.dynamic_rules = [
         DynamicRule(
             rule_id="counter_closed_early",

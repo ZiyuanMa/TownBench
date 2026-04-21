@@ -84,15 +84,6 @@ def build_effective_object_view(
         override_rules=override_rules,
     )
     effective_object.callable_actions = filtered_definitions
-
-    if not world_object.callable_actions:
-        effective_object.action_ids = list(filtered_definitions)
-        effective_object.action_effects = {
-            action_name: definition.routes[0].effect.model_copy(deep=True)
-            for action_name, definition in filtered_definitions.items()
-            if definition.routes and not definition.arguments
-        }
-
     effective_object.actionable = effective_object.actionable or bool(filtered_definitions)
 
     return EffectiveObjectView(
