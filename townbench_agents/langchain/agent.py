@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
-from agents.common import build_default_instructions
-from agents.langchain.config import LangChainAgentConfig
-from agents.langchain.tools import build_townbench_tools
+from townbench_agents.common import build_default_instructions
+from townbench_agents.langchain.config import LangChainAgentConfig
+from townbench_agents.langchain.tools import build_townbench_tools
 from runtime.env import TownBenchEnv
 
 

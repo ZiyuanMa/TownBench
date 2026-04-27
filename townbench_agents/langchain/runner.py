@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Callable
 
-from agents.langchain.agent import build_langchain_agent
-from agents.langchain.config import LangChainAgentConfig
+from townbench_agents.langchain.agent import build_langchain_agent
+from townbench_agents.langchain.config import LangChainAgentConfig
 from engine.rendering import render_initial_observation
 from evaluation.results import EpisodeRunResult, build_episode_result
 from runtime.env import TownBenchEnv

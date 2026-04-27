@@ -2,11 +2,11 @@ import asyncio
 from inspect import signature
 from pathlib import Path
 
-from agents.common import build_default_instructions
-from agents.langchain.agent import build_langchain_agent
-from agents.langchain.config import LangChainAgentConfig
-from agents.langchain.runner import run_langchain_agent_episode, run_langchain_agent_episode_streamed
-from agents.langchain.tools import build_townbench_tools
+from townbench_agents.common import build_default_instructions
+from townbench_agents.langchain.agent import build_langchain_agent
+from townbench_agents.langchain.config import LangChainAgentConfig
+from townbench_agents.langchain.runner import run_langchain_agent_episode, run_langchain_agent_episode_streamed
+from townbench_agents.langchain.tools import build_townbench_tools
 from runtime.env import TownBenchEnv
 from scenario.loader import load_scenario
 

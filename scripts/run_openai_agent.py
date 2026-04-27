@@ -13,12 +13,12 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from townbench_agents.langchain.config import LangChainAgentConfig
-from townbench_agents.langchain.runner import run_langchain_agent_episode, run_langchain_agent_episode_streamed
+from townbench_agents.openai.config import OpenAIAgentConfig
+from townbench_agents.openai.runner import run_openai_agent_episode, run_openai_agent_episode_streamed
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Run a TownBench agent with LangChain.")
+    parser = argparse.ArgumentParser(description="Run a TownBench agent with the OpenAI Agents SDK.")
     parser.add_argument(
         "--scenario",
         default=str(ROOT / "scenarios" / "demo_town" / "scenario.yaml"),
@@ -32,13 +32,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--model",
         default=None,
-        help="Optional override for LANGCHAIN_AGENT_MODEL.",
+        help="Optional override for OPENAI_AGENT_MODEL.",
     )
     parser.add_argument(
-        "--recursion-limit",
+        "--max-turns",
         type=int,
         default=None,
-        help="Optional override for the LangGraph recursion limit.",
+        help="Optional override for OPENAI_AGENT_MAX_TURNS.",
     )
     parser.add_argument(
         "--no-stream",
@@ -51,11 +51,11 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     load_dotenv(ROOT / ".env")
     args = parse_args()
-    env_model = os.getenv("LANGCHAIN_AGENT_MODEL")
+    env_model = os.getenv("OPENAI_AGENT_MODEL")
 
     if not (args.model or env_model):
         print(
-            "Missing required environment value: LANGCHAIN_AGENT_MODEL. Fill it in `.env` or pass --model.",
+            "Missing required environment value: OPENAI_AGENT_MODEL. Fill it in `.env` or pass --model.",
             file=sys.stderr,
         )
         return 1
@@ -66,20 +66,20 @@ def main() -> int:
         )
         return 1
 
-    config = LangChainAgentConfig.from_env()
+    config = OpenAIAgentConfig.from_env()
     if args.model is not None:
         config.model = args.model
-    if args.recursion_limit is not None:
-        config.recursion_limit = args.recursion_limit
+    if args.max_turns is not None:
+        config.max_turns = args.max_turns
 
     if args.no_stream:
-        result = run_langchain_agent_episode(
+        result = run_openai_agent_episode(
             scenario_path=args.scenario,
             config=config,
         )
     else:
         result = asyncio.run(
-            run_langchain_agent_episode_streamed(
+            run_openai_agent_episode_streamed(
                 scenario_path=args.scenario,
                 config=config,
                 on_text_delta=_print_stream_delta,

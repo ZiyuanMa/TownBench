@@ -72,3 +72,9 @@ python -m venv .venv
 # 请确保环境变量（如 .env）中已配置相应的 API Keys
 .venv/bin/python scripts/run_langchain_agent.py --scenario scenarios/demo_town/scenario.yaml
 ```
+
+体验 OpenAI Agents SDK Agent 在默认场景中的表现：
+```bash
+# 请确保环境变量（如 .env）中已配置 OPENAI_API_KEY 和 OPENAI_AGENT_MODEL
+.venv/bin/python scripts/run_openai_agent.py --scenario scenarios/demo_town/scenario.yaml
+```
