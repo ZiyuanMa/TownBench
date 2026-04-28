@@ -2,9 +2,12 @@ import asyncio
 from inspect import signature
 from pathlib import Path
 
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+
 from townbench_agents.common import build_default_instructions
 from townbench_agents.langchain.agent import build_langchain_agent
 from townbench_agents.langchain.config import LangChainAgentConfig
+from townbench_agents.langchain.deepseek import DeepSeekChatOpenAI
 from townbench_agents.langchain.runner import run_langchain_agent_episode, run_langchain_agent_episode_streamed
 from townbench_agents.langchain.tools import build_townbench_tools
 from runtime.env import TownBenchEnv
@@ -201,6 +204,74 @@ def test_build_langchain_agent_uses_config_and_tools():
     assert "economic state" in agent.system_prompt
     assert "## Town Map" in agent.system_prompt
     assert {tool.__name__ for tool in agent.tools} >= {"move_to", "call_action", "check_status"}
+
+
+def test_deepseek_chat_model_preserves_reasoning_content_from_response():
+    model = DeepSeekChatOpenAI(
+        model="deepseek-v4-flash",
+        api_key="test-key",
+        base_url="https://api.deepseek.com",
+    )
+    response = {
+        "choices": [
+            {
+                "message": {
+                    "role": "assistant",
+                    "content": "",
+                    "reasoning_content": "Need to inspect first.",
+                    "tool_calls": [
+                        {
+                            "id": "call_1",
+                            "type": "function",
+                            "function": {
+                                "name": "inspect",
+                                "arguments": "{\"target_id\":\"plaza\"}",
+                            },
+                        }
+                    ],
+                },
+                "finish_reason": "tool_calls",
+            }
+        ],
+        "usage": {},
+    }
+
+    result = model._create_chat_result(response)
+
+    message = result.generations[0].message
+    assert message.additional_kwargs["reasoning_content"] == "Need to inspect first."
+    assert message.tool_calls[0]["name"] == "inspect"
+
+
+def test_deepseek_chat_model_passes_reasoning_content_back_in_payload():
+    model = DeepSeekChatOpenAI(
+        model="deepseek-v4-flash",
+        api_key="test-key",
+        base_url="https://api.deepseek.com",
+    )
+    assistant_message = AIMessage(
+        content="",
+        additional_kwargs={"reasoning_content": "Need to inspect first."},
+        tool_calls=[
+            {
+                "id": "call_1",
+                "name": "inspect",
+                "args": {"target_id": "plaza"},
+            }
+        ],
+    )
+
+    payload = model._get_request_payload(
+        [
+            HumanMessage(content="Start the episode."),
+            assistant_message,
+            ToolMessage(content="Inspected Plaza.", tool_call_id="call_1"),
+        ]
+    )
+
+    assert payload["messages"][1]["role"] == "assistant"
+    assert payload["messages"][1]["reasoning_content"] == "Need to inspect first."
+    assert payload["messages"][1]["tool_calls"][0]["id"] == "call_1"
 
 
 def test_langchain_config_keeps_default_recursion_limit_when_env_is_unset(monkeypatch):

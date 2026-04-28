@@ -7,7 +7,15 @@ from runtime.env import TownBenchEnv
 from scenario.loader import load_scenario
 from townbench_agents.openai.agent import build_openai_agent
 from townbench_agents.openai.config import OpenAIAgentConfig
-from townbench_agents.openai.runner import run_openai_agent_episode, run_openai_agent_episode_streamed
+from townbench_agents.openai.deepseek import (
+    DeepSeekOpenAIProvider,
+    _prepare_deepseek_input_items,
+)
+from townbench_agents.openai.runner import (
+    _build_run_config,
+    run_openai_agent_episode,
+    run_openai_agent_episode_streamed,
+)
 from townbench_agents.openai.tools import build_townbench_tools
 
 
@@ -240,3 +248,71 @@ def test_openai_agents_sdk_import_is_not_shadowed():
     from agents import Agent
 
     assert Agent.__module__.startswith("agents.")
+
+
+def test_openai_run_config_uses_chat_completions_for_deepseek_endpoint():
+    config = OpenAIAgentConfig(
+        model="deepseek-v4-flash",
+        base_url="https://api.deepseek.com",
+    )
+
+    run_config = _build_run_config(config)
+
+    assert run_config.tracing_disabled is True
+    assert run_config.reasoning_item_id_policy == "omit"
+    assert isinstance(run_config.model_provider, DeepSeekOpenAIProvider)
+    assert run_config.model_provider._stored_base_url == "https://api.deepseek.com"
+    assert run_config.model_provider._use_responses is False
+
+
+def test_openai_run_config_keeps_responses_api_for_openai_defaults():
+    config = OpenAIAgentConfig(model="gpt-4.1", base_url=None)
+
+    run_config = _build_run_config(config)
+
+    assert run_config.tracing_disabled is False
+    assert run_config.reasoning_item_id_policy is None
+
+
+def test_deepseek_input_preparation_keeps_reasoning_with_text_and_tool_call():
+    items = [
+        {
+            "type": "reasoning",
+            "id": "fake-id",
+            "summary": [{"type": "summary_text", "text": "need current status"}],
+        },
+        {
+            "type": "message",
+            "role": "assistant",
+            "content": [{"type": "output_text", "text": "I will check."}],
+        },
+        {
+            "type": "function_call",
+            "call_id": "call_status",
+            "name": "check_status",
+            "arguments": "{}",
+        },
+    ]
+
+    prepared = _prepare_deepseek_input_items(items)
+
+    assert [item["type"] for item in prepared] == ["message", "reasoning", "function_call"]
+    assert "id" not in prepared[1]
+
+    from agents.models.chatcmpl_converter import Converter
+
+    messages = Converter.items_to_messages(prepared, model="deepseek-v4-flash")
+    assert messages == [
+        {
+            "role": "assistant",
+            "content": "I will check.",
+            "tool_calls": [
+                {
+                    "id": "call_status",
+                    "type": "function",
+                    "function": {"name": "check_status", "arguments": "{}"},
+                }
+            ],
+            "reasoning_content": "need current status",
+        }
+    ]

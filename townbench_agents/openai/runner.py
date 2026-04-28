@@ -254,10 +254,31 @@ def _build_run_config(config: OpenAIAgentConfig) -> Any:
             "openai-agents is not installed. Install dependencies before using the OpenAI Agents baseline."
         ) from exc
 
-    kwargs: dict[str, Any] = {"tracing_disabled": config.tracing_disabled}
+    uses_deepseek = _uses_deepseek_compatible_endpoint(config)
+    kwargs: dict[str, Any] = {"tracing_disabled": config.tracing_disabled or uses_deepseek}
+    if uses_deepseek:
+        # DeepSeek thinking-mode chat completions require every historical tool-call assistant
+        # message to include its original reasoning_content. The Agents SDK gives converted
+        # reasoning items a shared placeholder ID, so omitting reasoning IDs prevents turn-history
+        # deduplication from collapsing earlier reasoning items.
+        kwargs["reasoning_item_id_policy"] = "omit"
     if config.base_url:
-        kwargs["model_provider"] = OpenAIProvider(base_url=config.base_url)
+        provider_cls = OpenAIProvider
+        if uses_deepseek:
+            from townbench_agents.openai.deepseek import DeepSeekOpenAIProvider
+
+            provider_cls = DeepSeekOpenAIProvider
+        kwargs["model_provider"] = provider_cls(
+            base_url=config.base_url,
+            use_responses=False if uses_deepseek else None,
+        )
     return RunConfig(**kwargs)
+
+
+def _uses_deepseek_compatible_endpoint(config: OpenAIAgentConfig) -> bool:
+    model = (config.model or "").lower()
+    base_url = (config.base_url or "").lower()
+    return model.startswith("deepseek-") or "deepseek.com" in base_url
 
 
 def _load_runner() -> Any:

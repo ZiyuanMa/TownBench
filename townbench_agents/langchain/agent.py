@@ -50,7 +50,19 @@ def _build_chat_model(config: LangChainAgentConfig) -> Any:
         kwargs["max_retries"] = config.max_retries
     if config.base_url:
         kwargs["base_url"] = config.base_url
-    return ChatOpenAI(**kwargs)
+    if _uses_deepseek_compatible_endpoint(config):
+        from townbench_agents.langchain.deepseek import DeepSeekChatOpenAI
+
+        model_class = DeepSeekChatOpenAI
+    else:
+        model_class = ChatOpenAI
+    return model_class(**kwargs)
+
+
+def _uses_deepseek_compatible_endpoint(config: LangChainAgentConfig) -> bool:
+    model = (config.model or "").lower()
+    base_url = (config.base_url or "").lower()
+    return model.startswith("deepseek-") or "deepseek.com" in base_url
 
 
 def _load_create_agent() -> Callable[..., Any]:
