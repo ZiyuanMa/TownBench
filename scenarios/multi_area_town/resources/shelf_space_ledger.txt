@@ -5,4 +5,4 @@ Storage ledger excerpt:
 - Upgrade effect: +2 permanent carry slots for this run
 - This clerk records one upgrade per worker and will not sell the same upgrade twice
 
-Timing note: buying the upgrade can make bundled tea inputs possible, but the trip to storage can also cost a worker a morning price window. Expand when the saved carry trips are worth more than the missed rush.
+Timing note: buying the upgrade can make bundled tea inputs possible, but the trip to storage can also cost a worker a price or payout window. Expand when the saved carry trips are worth more than the missed rush.

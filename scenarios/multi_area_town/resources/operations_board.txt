@@ -1,8 +1,8 @@
 Town operating summary:
 
 - The fuel counter posts an early-shift canister price. Check the usage notice before buying fuel.
-- The cafe pickup window has a short breakfast rush for meal boxes. The counter has the current payout.
-- The depot repair queue handles morning intake and has its own payout windows. Read the queue before starting repair work.
-- The market buyer sometimes raises the packed tea offer during a late-morning rush. Inspect the buyer before selling.
+- The cafe pickup window has a dinner rush for meal boxes from 18:00 until 19:00. The counter has the current payout.
+- The depot repair queue handles intake and has its own payout windows. Read the queue before starting repair work.
+- The market buyer sometimes raises the packed tea offer during an afternoon rush. Check the material notice and inspect the buyer before selling.
 - The storage room still handles one locker upgrade. Expanding bag space can help with batch buying, but it costs time and money.
 - Clearance goods may look cheap without creating useful operating margin.

@@ -362,22 +362,40 @@ def test_multi_area_town_time_windows_project_distributed_opportunities():
         "goods_buyer",
         "sell",
         action_args={"item_id": "packed_tea"},
-        at_time=parse_time_label("Day 1, 09:40"),
+        at_time=parse_time_label("Day 1, 14:40"),
     )
     trinket_effect = build_effective_action_effect(
         state,
         "goods_buyer",
         "sell",
         action_args={"item_id": "dusty_trinket"},
-        at_time=parse_time_label("Day 1, 09:40"),
+        at_time=parse_time_label("Day 1, 14:40"),
     )
     assert tea_bonus is not None
     assert trinket_effect is not None
     assert tea_bonus.money_delta == 18
     assert trinket_effect.money_delta == 0
 
-    open_queue = build_effective_object_view(state, "repair_queue", at_time=parse_time_label("Day 1, 09:00"))
-    closed_queue = build_effective_object_view(state, "repair_queue", at_time=parse_time_label("Day 1, 09:15"))
+    service_premium = build_effective_action_effect(
+        state,
+        "pickup_clerk",
+        "collect_service_fee",
+        at_time=parse_time_label("Day 1, 16:45"),
+    )
+    assert service_premium is not None
+    assert service_premium.money_delta == 18
+
+    meal_bonus = build_effective_action_effect(
+        state,
+        "meal_counter",
+        "sell_meal_box",
+        at_time=parse_time_label("Day 1, 18:15"),
+    )
+    assert meal_bonus is not None
+    assert meal_bonus.money_delta == 7
+
+    open_queue = build_effective_object_view(state, "repair_queue", at_time=parse_time_label("Day 1, 10:15"))
+    closed_queue = build_effective_object_view(state, "repair_queue", at_time=parse_time_label("Day 1, 11:30"))
     assert open_queue is not None
     assert closed_queue is not None
     assert list(open_queue.object.callable_actions) == ["accept_repair_job"]

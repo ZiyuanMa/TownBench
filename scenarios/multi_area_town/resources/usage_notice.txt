@@ -4,5 +4,6 @@ Fuel usage notice:
 - Standard fuel price after the early shift is 2 coins.
 - Each tea batch consumes exactly 1 `fuel_canister`.
 - Packed tea also needs 1 `packaging_sleeve`.
+- The market buyer's packed-tea rush is later in the day, from 14:30 until 15:30.
 
 Tea margins depend on both timing and materials. Buying discounted fuel helps only if you still leave enough time to brew, pack, and find a buyer.

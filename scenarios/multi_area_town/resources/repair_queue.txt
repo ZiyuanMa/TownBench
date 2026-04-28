@@ -1,7 +1,7 @@
 Repair queue notice:
 
-- Morning intake for commuter kettle work runs from 08:00 until 09:15. Accept a job here before using the repair bench.
-- Early payout premium runs until 09:30. A signed `serviced_device_ticket` pays 18 coins during that window.
+- Intake for commuter kettle work runs from 10:00 until 11:30. Accept a job here before using the repair bench.
+- Late-shift payout premium runs from 16:30 until 17:30. A signed `serviced_device_ticket` pays 18 coins during that window.
 - Standard payout outside the premium window is 16 coins.
 - The depot payout desk is closed for lunch from 11:30 until 13:00.
 - The repair room bench issues the signed `serviced_device_ticket` after accepted work is completed.

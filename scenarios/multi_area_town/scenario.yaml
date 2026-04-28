@@ -254,7 +254,7 @@ objects:
     name: Goods Buyer
     object_type: buyer
     location_id: market
-    summary: "A buyer whose packed tea offer changes during a short morning rush."
+    summary: "A buyer whose packed tea offer changes during a short afternoon rush."
     visible_state:
       packed_tea_payout: 14
       dusty_trinket_payout: 0
@@ -378,7 +378,7 @@ objects:
     name: Meal Counter
     object_type: counter
     location_id: pickup_window
-    summary: "A side window buying finished meal boxes during breakfast traffic and selling hot recovery food."
+    summary: "A side window buying finished meal boxes during dinner traffic and selling hot recovery food."
     visible_state:
       meal_box_payout: 5
       hot_meal_price: 4
@@ -499,18 +499,18 @@ objects:
     name: Repair Queue
     object_type: board
     location_id: service_depot
-    summary: "A board for accepting morning repair jobs and checking depot payout windows."
+    summary: "A board for accepting repair jobs and checking depot payout windows."
     visible_state:
       intake_open: true
-      intake_window: "08:00-09:15"
-      morning_premium_until: "09:30"
+      intake_window: "10:00-11:30"
+      service_premium_window: "16:30-17:30"
       lunch_break: "11:30-13:00"
     readable: true
     actionable: true
     resource_file: resources/repair_queue.txt
     callable_actions:
       accept_repair_job:
-        description: "Accept one commuter kettle repair job during the morning intake window."
+        description: "Accept one commuter kettle repair job during the midmorning intake window."
         arguments: {}
         routes:
           - match: {}
@@ -653,36 +653,36 @@ dynamic_rules:
                 required_money: 1
                 money_delta: -1
 
-  - rule_id: breakfast_meal_bonus
+  - rule_id: dinner_meal_bonus
     priority: 10
     when:
       time_window:
-        start: "08:45"
-        end: "09:15"
+        start: "18:00"
+        end: "19:00"
     apply:
       object_overrides:
         meal_counter:
           visible_state:
             meal_box_payout: 7
-            demand_window: "breakfast_rush"
+            demand_window: "dinner_rush"
           callable_action_overrides:
             - match:
                 action_name: sell_meal_box
               override:
                 money_delta: 7
 
-  - rule_id: morning_packed_tea_bonus
+  - rule_id: afternoon_packed_tea_bonus
     priority: 10
     when:
       time_window:
-        start: "09:30"
-        end: "10:00"
+        start: "14:30"
+        end: "15:30"
     apply:
       object_overrides:
         goods_buyer:
           visible_state:
             packed_tea_payout: 18
-            demand_window: "morning_rush"
+            demand_window: "afternoon_rush"
           callable_action_overrides:
             - match:
                 action_name: sell
@@ -691,18 +691,18 @@ dynamic_rules:
               override:
                 money_delta: 18
 
-  - rule_id: morning_repair_premium
+  - rule_id: late_service_premium
     priority: 10
     when:
       time_window:
-        start: "08:00"
-        end: "09:30"
+        start: "16:30"
+        end: "17:30"
     apply:
       object_overrides:
         pickup_clerk:
           visible_state:
             serviced_device_ticket_payout: 18
-            payout_window: "morning_premium"
+            payout_window: "late_shift_premium"
           callable_action_overrides:
             - match:
                 action_name: collect_service_fee
@@ -728,8 +728,8 @@ dynamic_rules:
     when:
       not:
         time_window:
-          start: "08:00"
-          end: "09:15"
+          start: "10:00"
+          end: "11:30"
     apply:
       object_overrides:
         repair_queue:
