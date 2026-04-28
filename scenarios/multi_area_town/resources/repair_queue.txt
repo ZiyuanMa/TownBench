@@ -1,8 +1,10 @@
 Repair queue notice:
 
-- Standard commuter kettle service ticket pays 16 coins
-- The repair room bench issues a signed `serviced_device_ticket`
-- The depot only pays for completed tickets, not loose parts
-- Repair parts are sold at the supply counter for 6 coins
+- Morning intake for commuter kettle work runs from 08:00 until 09:15. Accept a job here before using the repair bench.
+- Early payout premium runs until 09:30. A signed `serviced_device_ticket` pays 18 coins during that window.
+- Standard payout outside the premium window is 16 coins.
+- The depot payout desk is closed for lunch from 11:30 until 13:00.
+- The repair room bench issues the signed `serviced_device_ticket` after accepted work is completed.
+- Repair parts are sold at the supply counter for 6 coins.
 
-This is the best single-loop margin in town, but it requires working capital up front.
+Loose parts are not payable by themselves. The clerk pays for completed tickets only.

@@ -6,11 +6,13 @@ public_rules:
   - "Actions cost time and most actions cost energy."
   - "Your bag starts with a visible carry limit based on total item count."
   - "Locations may belong to an Area such as a building or district. You can move freely between locations in the same Area. Use `nearby_locations` to see every currently reachable location."
+  - "Some town opportunities change by clock time. Local notices mention the relevant windows."
 
 initial_world_state:
   current_time: "Day 1, 08:00"
   world_flags:
     locker_upgrade_purchased: false
+    repair_job_accepted: false
 
 initial_agent_state:
   location_id: plaza
@@ -160,7 +162,7 @@ objects:
     name: Operations Board
     object_type: board
     location_id: plaza
-    summary: "A handwritten board summarizing the town's active operating loops."
+    summary: "A handwritten board with scattered timing notes for the town's active work."
     readable: true
     resource_file: resources/operations_board.txt
 
@@ -252,7 +254,7 @@ objects:
     name: Goods Buyer
     object_type: buyer
     location_id: market
-    summary: "A buyer who pays well for packed tea and barely anything for bad stock."
+    summary: "A buyer whose packed tea offer changes during a short morning rush."
     visible_state:
       packed_tea_payout: 14
       dusty_trinket_payout: 0
@@ -351,7 +353,7 @@ objects:
     name: Repair Bench
     object_type: bench
     location_id: repair_room
-    summary: "A bench where paid service jobs are completed after you bring the right part."
+    summary: "A bench where accepted service jobs are completed after you bring the right part."
     visible_state:
       service_fee: 16
     actionable: true
@@ -363,16 +365,20 @@ objects:
           - match: {}
             effect:
                     message: "You completed one depot repair and received a signed service ticket."
+                    required_world_flags:
+                      repair_job_accepted: true
                     required_inventory:
                       repair_part: 1
                     inventory_delta:
                       repair_part: -1
                       serviced_device_ticket: 1
+                    set_world_flags:
+                      repair_job_accepted: false
   - object_id: meal_counter
     name: Meal Counter
     object_type: counter
     location_id: pickup_window
-    summary: "A side window buying finished meal boxes and selling hot recovery food."
+    summary: "A side window buying finished meal boxes during breakfast traffic and selling hot recovery food."
     visible_state:
       meal_box_payout: 5
       hot_meal_price: 4
@@ -472,7 +478,7 @@ objects:
     name: Pickup Clerk
     object_type: clerk
     location_id: service_depot
-    summary: "A depot clerk who pays out signed service tickets."
+    summary: "A depot clerk who pays out signed service tickets outside posted breaks."
     visible_state:
       serviced_device_ticket_payout: 16
     actionable: true
@@ -493,15 +499,35 @@ objects:
     name: Repair Queue
     object_type: board
     location_id: service_depot
-    summary: "A board showing the standing payout for finished repair tickets."
+    summary: "A board for accepting morning repair jobs and checking depot payout windows."
+    visible_state:
+      intake_open: true
+      intake_window: "08:00-09:15"
+      morning_premium_until: "09:30"
+      lunch_break: "11:30-13:00"
     readable: true
+    actionable: true
     resource_file: resources/repair_queue.txt
+    callable_actions:
+      accept_repair_job:
+        description: "Accept one commuter kettle repair job during the morning intake window."
+        arguments: {}
+        routes:
+          - match: {}
+            effect:
+                    message: "You accepted one commuter kettle repair job from the depot queue."
+                    required_world_flags:
+                      repair_job_accepted: false
+                    set_visible_state:
+                      intake_status: accepted
+                    set_world_flags:
+                      repair_job_accepted: true
 
   - object_id: fuel_rack
     name: Fuel Rack
     object_type: rack
     location_id: fuel_counter
-    summary: "A rack of fresh fuel canisters for the tea station."
+    summary: "A rack of fresh fuel canisters with a posted early-shift price."
     visible_state:
       fuel_canister_price: 2
     actionable: true
@@ -521,7 +547,7 @@ objects:
     name: Usage Notice
     object_type: notice
     location_id: fuel_counter
-    summary: "A short operations note about fuel usage and tea margins."
+    summary: "A short operations note about fuel timing and tea materials."
     readable: true
     resource_file: resources/usage_notice.txt
 
@@ -606,6 +632,111 @@ action_costs:
   call_action:
     time_delta: 8
     energy_delta: -4
+
+dynamic_rules:
+  - rule_id: early_fuel_discount
+    priority: 10
+    when:
+      time_window:
+        start: "08:00"
+        end: "08:45"
+    apply:
+      object_overrides:
+        fuel_rack:
+          visible_state:
+            fuel_canister_price: 1
+            price_window: "early_shift"
+          callable_action_overrides:
+            - match:
+                action_name: buy_fuel_canister
+              override:
+                required_money: 1
+                money_delta: -1
+
+  - rule_id: breakfast_meal_bonus
+    priority: 10
+    when:
+      time_window:
+        start: "08:45"
+        end: "09:15"
+    apply:
+      object_overrides:
+        meal_counter:
+          visible_state:
+            meal_box_payout: 7
+            demand_window: "breakfast_rush"
+          callable_action_overrides:
+            - match:
+                action_name: sell_meal_box
+              override:
+                money_delta: 7
+
+  - rule_id: morning_packed_tea_bonus
+    priority: 10
+    when:
+      time_window:
+        start: "09:30"
+        end: "10:00"
+    apply:
+      object_overrides:
+        goods_buyer:
+          visible_state:
+            packed_tea_payout: 18
+            demand_window: "morning_rush"
+          callable_action_overrides:
+            - match:
+                action_name: sell
+                action_args:
+                  item_id: packed_tea
+              override:
+                money_delta: 18
+
+  - rule_id: morning_repair_premium
+    priority: 10
+    when:
+      time_window:
+        start: "08:00"
+        end: "09:30"
+    apply:
+      object_overrides:
+        pickup_clerk:
+          visible_state:
+            serviced_device_ticket_payout: 18
+            payout_window: "morning_premium"
+          callable_action_overrides:
+            - match:
+                action_name: collect_service_fee
+              override:
+                money_delta: 18
+
+  - rule_id: depot_lunch_break
+    priority: 20
+    when:
+      time_window:
+        start: "11:30"
+        end: "13:00"
+    apply:
+      object_overrides:
+        pickup_clerk:
+          visible_state:
+            payout_window: "lunch_break"
+          disabled_callable_actions:
+            - action_name: collect_service_fee
+
+  - rule_id: repair_queue_intake_closed
+    priority: 10
+    when:
+      not:
+        time_window:
+          start: "08:00"
+          end: "09:15"
+    apply:
+      object_overrides:
+        repair_queue:
+          visible_state:
+            intake_open: false
+          disabled_callable_actions:
+            - action_name: accept_repair_job
 
 termination_config:
   max_steps: 50

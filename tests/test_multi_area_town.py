@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from engine.rules import parse_time_label
 from runtime.env import TownBenchEnv
 from scenario.loader import load_scenario
 
@@ -51,6 +52,14 @@ def _run_meal_loop(env: TownBenchEnv) -> None:
     env.step({"type": "call_action", "target_id": "meal_counter", "action_name": "sell_meal_box"})
 
 
+def _accept_repair_job_from_market(env: TownBenchEnv) -> None:
+    env.step({"type": "move_to", "target_id": "plaza"})
+    env.step({"type": "move_to", "target_id": "service_depot"})
+    env.step({"type": "call_action", "target_id": "repair_queue", "action_name": "accept_repair_job"})
+    env.step({"type": "move_to", "target_id": "plaza"})
+    env.step({"type": "move_to", "target_id": "market"})
+
+
 def _run_repair_loop_from_cafe(env: TownBenchEnv) -> None:
     env.step({"type": "move_to", "target_id": "cafe_front"})
     env.step({"type": "move_to", "target_id": "market"})
@@ -100,8 +109,18 @@ def test_multi_area_town_loads_expected_area_aware_content():
     assert env.state.locations["tea_room"].area_id == "workshop_building"
     assert env.state.locations["pickup_window"].area_id == "cafe_corner"
     assert env.state.objects["operations_board"].resource_content.startswith("Town operating summary")
+    assert "repair_job_accepted" in env.state.world_flags
     assert env.state.objects["cafe_buyer"].visible_state["packed_tea_payout"] == 12
     assert env.state.objects["locker_desk"].visible_state["upgrade_status"] == "available"
+    assert "accept_repair_job" in env.state.objects["repair_queue"].callable_actions
+    assert [rule.rule_id for rule in env.state.dynamic_rules] == [
+        "early_fuel_discount",
+        "breakfast_meal_bonus",
+        "morning_packed_tea_bonus",
+        "morning_repair_premium",
+        "depot_lunch_break",
+        "repair_queue_intake_closed",
+    ]
 
 
 def test_multi_area_town_tea_loop_can_repeat_profitably():
@@ -112,7 +131,7 @@ def test_multi_area_town_tea_loop_can_repeat_profitably():
     _run_tea_loop(env)
     _run_tea_loop(env)
 
-    assert env.state.agent.money == 28
+    assert env.state.agent.money == 33
     assert env.state.agent.inventory == {}
     assert env.state.agent.location_id == "market"
 
@@ -157,7 +176,7 @@ def test_multi_area_town_meal_loop_is_low_capital_fallback():
 
     _run_meal_loop(env)
 
-    assert env.state.agent.money == 5
+    assert env.state.agent.money == 7
     assert env.state.agent.inventory == {}
     assert env.state.agent.location_id == "pickup_window"
 
@@ -178,6 +197,7 @@ def test_multi_area_town_repair_loop_requires_more_startup_capital_than_meal_loo
         }
     )
     env.step({"type": "move_to", "target_id": "market"})
+    _accept_repair_job_from_market(env)
     _run_meal_loop(env)
     _run_repair_loop_from_cafe(env)
 
@@ -186,6 +206,7 @@ def test_multi_area_town_repair_loop_requires_more_startup_capital_than_meal_loo
     assert env.state.agent.money == 18
     assert env.state.agent.inventory == {}
     assert env.state.agent.location_id == "service_depot"
+    assert env.state.world_flags["repair_job_accepted"] is False
 
 
 def test_multi_area_town_locker_upgrade_enables_bulk_input_purchase_and_is_one_time():
@@ -273,3 +294,38 @@ def test_multi_area_town_cafe_coffee_and_alt_sale_work():
     assert env.state.agent.money == 12
     assert env.state.agent.inventory == {}
     assert env.state.objects["goods_buyer"].visible_state["packed_tea_payout"] > sale.data["money"]
+
+
+def test_multi_area_town_repair_intake_closes_after_morning_window():
+    env = _load_multi_area_env()
+    env.reset()
+    env.state.current_time = parse_time_label("Day 1, 09:15")
+    env.state.agent.location_id = "service_depot"
+
+    result = env.step({"type": "call_action", "target_id": "repair_queue", "action_name": "accept_repair_job"})
+
+    assert result.success is False
+    assert result.warnings == ["action_temporarily_unavailable"]
+    queue = next(item for item in result.observation.visible_objects if item.object_id == "repair_queue")
+    assert queue.visible_state["intake_open"] is False
+
+
+def test_multi_area_town_depot_lunch_break_temporarily_blocks_payout():
+    env = _load_multi_area_env()
+    env.reset()
+    env.state.current_time = parse_time_label("Day 1, 11:45")
+    env.state.agent.location_id = "service_depot"
+    env.state.agent.inventory = {"serviced_device_ticket": 1}
+
+    lunch_result = env.step({"type": "call_action", "target_id": "pickup_clerk", "action_name": "collect_service_fee"})
+
+    env.state.current_time = parse_time_label("Day 1, 13:00")
+    after_lunch_result = env.step(
+        {"type": "call_action", "target_id": "pickup_clerk", "action_name": "collect_service_fee"}
+    )
+
+    assert lunch_result.success is False
+    assert lunch_result.warnings == ["action_temporarily_unavailable"]
+    assert after_lunch_result.success is True
+    assert env.state.agent.money == 30
+    assert env.state.agent.inventory == {}

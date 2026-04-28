@@ -1,4 +1,6 @@
-from engine.dynamics import build_effective_object_view, matches_time_window
+from pathlib import Path
+
+from engine.dynamics import build_effective_action_effect, build_effective_object_view, matches_time_window
 from engine.rules import format_time_label, parse_time_label
 from engine.state import (
     CallableActionDefinition,
@@ -12,6 +14,7 @@ from engine.state import (
     ObjectDynamicOverride,
     TimeWindow,
 )
+from scenario.loader import load_scenario
 
 
 def test_matches_time_window_supports_cross_midnight():
@@ -325,3 +328,58 @@ def test_dynamic_rule_can_combine_time_location_and_inventory_conditions(minimal
     inactive_view = build_effective_object_view(state, "counter", at_time=(9 * 60) + 5)
     assert inactive_view is not None
     assert inactive_view.object.visible_state == {"promo": False}
+
+
+def test_multi_area_town_time_windows_project_distributed_opportunities():
+    scenario_path = Path(__file__).resolve().parents[1] / "scenarios" / "multi_area_town" / "scenario.yaml"
+    state = load_scenario(scenario_path)
+
+    fuel_view = build_effective_object_view(state, "fuel_rack", at_time=parse_time_label("Day 1, 08:20"))
+    assert fuel_view is not None
+    assert fuel_view.object.visible_state["fuel_canister_price"] == 1
+    discounted_fuel = build_effective_action_effect(
+        state,
+        "fuel_rack",
+        "buy_fuel_canister",
+        at_time=parse_time_label("Day 1, 08:20"),
+    )
+    assert discounted_fuel is not None
+    assert discounted_fuel.required_money == 1
+    assert discounted_fuel.money_delta == -1
+
+    standard_fuel = build_effective_action_effect(
+        state,
+        "fuel_rack",
+        "buy_fuel_canister",
+        at_time=parse_time_label("Day 1, 08:45"),
+    )
+    assert standard_fuel is not None
+    assert standard_fuel.required_money == 2
+    assert standard_fuel.money_delta == -2
+
+    tea_bonus = build_effective_action_effect(
+        state,
+        "goods_buyer",
+        "sell",
+        action_args={"item_id": "packed_tea"},
+        at_time=parse_time_label("Day 1, 09:40"),
+    )
+    trinket_effect = build_effective_action_effect(
+        state,
+        "goods_buyer",
+        "sell",
+        action_args={"item_id": "dusty_trinket"},
+        at_time=parse_time_label("Day 1, 09:40"),
+    )
+    assert tea_bonus is not None
+    assert trinket_effect is not None
+    assert tea_bonus.money_delta == 18
+    assert trinket_effect.money_delta == 0
+
+    open_queue = build_effective_object_view(state, "repair_queue", at_time=parse_time_label("Day 1, 09:00"))
+    closed_queue = build_effective_object_view(state, "repair_queue", at_time=parse_time_label("Day 1, 09:15"))
+    assert open_queue is not None
+    assert closed_queue is not None
+    assert list(open_queue.object.callable_actions) == ["accept_repair_job"]
+    assert closed_queue.object.callable_actions == {}
+    assert closed_queue.object.visible_state["intake_open"] is False

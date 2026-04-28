@@ -1,7 +1,8 @@
 Fuel usage notice:
 
-- Each tea batch consumes exactly 1 `fuel_canister`
-- Packed tea also needs 1 `packaging_sleeve`
-- Fresh fuel is sold here for 2 coins
+- Early-shift fuel discount: fresh `fuel_canister` stock is 1 coin from 08:00 until 08:45.
+- Standard fuel price after the early shift is 2 coins.
+- Each tea batch consumes exactly 1 `fuel_canister`.
+- Packed tea also needs 1 `packaging_sleeve`.
 
-Tea margins stay healthy only if you remember to replenish both fuel and sleeves.
+Tea margins depend on both timing and materials. Buying discounted fuel helps only if you still leave enough time to brew, pack, and find a buyer.
