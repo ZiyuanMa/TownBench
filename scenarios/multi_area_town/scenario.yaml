@@ -380,7 +380,7 @@ objects:
     location_id: pickup_window
     summary: "A side window buying finished meal boxes during dinner traffic and selling hot recovery food."
     visible_state:
-      meal_box_payout: 5
+      meal_box_payout: 6
       hot_meal_price: 4
     actionable: true
     callable_actions:
@@ -739,5 +739,5 @@ dynamic_rules:
             - action_name: accept_repair_job
 
 termination_config:
-  max_steps: 50
+  max_steps: 90
   stop_on_zero_energy: true
