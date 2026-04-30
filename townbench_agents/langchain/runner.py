@@ -9,6 +9,7 @@ from engine.rendering import render_initial_observation
 from evaluation.results import EpisodeRunResult, build_episode_result
 from runtime.env import TownBenchEnv
 from runtime.episode import build_episode_initial_input, resolve_episode_env
+from townbench_agents.message_capture import append_langchain_messages, extract_langchain_messages
 
 TextDeltaHandler = Callable[[str], None]
 EventHandler = Callable[[str], None]
@@ -38,6 +39,7 @@ def run_langchain_agent_episode(
         env=prepared.env,
         final_output=outcome.final_output,
         runner_error=outcome.runner_error,
+        messages=outcome.messages,
     )
 
 
@@ -71,6 +73,7 @@ async def run_langchain_agent_episode_streamed(
         env=prepared.env,
         final_output=outcome.final_output,
         runner_error=outcome.runner_error,
+        messages=outcome.messages,
     )
 
 
@@ -92,9 +95,16 @@ class _PreparedEpisodeRun:
 
 
 class _RunnerOutcome:
-    def __init__(self, *, final_output: str, runner_error: str | None) -> None:
+    def __init__(
+        self,
+        *,
+        final_output: str,
+        runner_error: str | None,
+        messages: list[dict[str, Any]] | None = None,
+    ) -> None:
         self.final_output = final_output
         self.runner_error = runner_error
+        self.messages = list(messages or [])
 
 
 def _prepare_episode_run(
@@ -147,14 +157,16 @@ def _prepare_episode_run(
 def _run_sync_episode(prepared: _PreparedEpisodeRun) -> _RunnerOutcome:
     runner_error: str | None = None
     final_output = ""
+    messages: list[dict[str, Any]] = []
     try:
         result = _invoke_agent(prepared.agent, prepared.agent_input, prepared.invoke_config)
         final_output = _extract_final_output(result)
+        messages = extract_langchain_messages(result)
     except Exception as exc:  # pragma: no cover - exercised by tests via fake exception
         if not _is_recursion_limit_error(exc):
             raise
         runner_error = _resolve_runner_error(prepared.env, exc)
-    return _RunnerOutcome(final_output=final_output, runner_error=runner_error)
+    return _RunnerOutcome(final_output=final_output, runner_error=runner_error, messages=messages)
 
 
 async def _run_streamed_episode(
@@ -166,6 +178,7 @@ async def _run_streamed_episode(
     text_fragments: list[str] = []
     latest_model_text = ""
     runner_error: str | None = None
+    messages: list[dict[str, Any]] = []
     try:
         async for chunk in _astream_agent(prepared.agent, prepared.agent_input, prepared.invoke_config):
             delta, latest_model_text = _handle_stream_chunk(
@@ -173,6 +186,7 @@ async def _run_streamed_episode(
                 on_text_delta=on_text_delta,
                 on_event=on_event,
                 latest_model_text=latest_model_text,
+                captured_messages=messages,
             )
             if delta:
                 text_fragments.append(delta)
@@ -184,6 +198,7 @@ async def _run_streamed_episode(
     return _RunnerOutcome(
         final_output="".join(text_fragments) or latest_model_text,
         runner_error=runner_error,
+        messages=messages,
     )
 
 
@@ -210,6 +225,7 @@ def _handle_stream_chunk(
     on_text_delta: TextDeltaHandler | None,
     on_event: EventHandler | None,
     latest_model_text: str,
+    captured_messages: list[dict[str, Any]],
 ) -> tuple[str, str]:
     if not isinstance(chunk, dict):
         return "", latest_model_text
@@ -231,6 +247,7 @@ def _handle_stream_chunk(
             continue
         message = messages[-1]
         if step == "model":
+            append_langchain_messages(captured_messages, messages)
             if _message_has_tool_calls(message):
                 if on_event is not None:
                     on_event("tool_called")

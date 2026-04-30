@@ -7,6 +7,10 @@ from engine.rendering import render_initial_observation
 from evaluation.results import EpisodeRunResult, build_episode_result
 from runtime.env import TownBenchEnv
 from runtime.episode import build_episode_initial_input, resolve_episode_env
+from townbench_agents.message_capture import (
+    extract_openai_messages,
+    extract_openai_messages_from_exception,
+)
 from townbench_agents.openai.agent import build_openai_agent
 from townbench_agents.openai.config import OpenAIAgentConfig
 
@@ -40,6 +44,7 @@ def run_openai_agent_episode(
         env=prepared.env,
         final_output=outcome.final_output,
         runner_error=outcome.runner_error,
+        messages=outcome.messages,
     )
 
 
@@ -75,6 +80,7 @@ async def run_openai_agent_episode_streamed(
         env=prepared.env,
         final_output=outcome.final_output,
         runner_error=outcome.runner_error,
+        messages=outcome.messages,
     )
 
 
@@ -98,9 +104,16 @@ class _PreparedEpisodeRun:
 
 
 class _RunnerOutcome:
-    def __init__(self, *, final_output: str, runner_error: str | None) -> None:
+    def __init__(
+        self,
+        *,
+        final_output: str,
+        runner_error: str | None,
+        messages: list[dict[str, Any]] | None = None,
+    ) -> None:
         self.final_output = final_output
         self.runner_error = runner_error
+        self.messages = list(messages or [])
 
 
 def _prepare_episode_run(
@@ -143,6 +156,7 @@ def _prepare_episode_run(
 def _run_sync_episode(prepared: _PreparedEpisodeRun) -> _RunnerOutcome:
     runner_error: str | None = None
     final_output = ""
+    messages: list[dict[str, Any]] = []
     try:
         result = prepared.runner.run_sync(
             prepared.agent,
@@ -151,11 +165,13 @@ def _run_sync_episode(prepared: _PreparedEpisodeRun) -> _RunnerOutcome:
             run_config=prepared.run_config,
         )
         final_output = _extract_final_output(result)
+        messages = extract_openai_messages(result, model=prepared.config.model)
     except Exception as exc:  # pragma: no cover - exercised by tests via fake exception
         if not _is_max_turns_error(exc):
             raise
         runner_error = _resolve_runner_error(prepared.env, exc)
-    return _RunnerOutcome(final_output=final_output, runner_error=runner_error)
+        messages = extract_openai_messages_from_exception(exc, model=prepared.config.model)
+    return _RunnerOutcome(final_output=final_output, runner_error=runner_error, messages=messages)
 
 
 async def _run_streamed_episode(
@@ -167,6 +183,7 @@ async def _run_streamed_episode(
     text_fragments: list[str] = []
     runner_error: str | None = None
     result = None
+    messages: list[dict[str, Any]] = []
     try:
         result = prepared.runner.run_streamed(
             prepared.agent,
@@ -182,11 +199,16 @@ async def _run_streamed_episode(
         if not _is_max_turns_error(exc):
             raise
         runner_error = _resolve_runner_error(prepared.env, exc)
+        messages = extract_openai_messages_from_exception(exc, model=prepared.config.model)
 
     final_output = "".join(text_fragments)
     if not final_output and result is not None:
         final_output = _extract_final_output(result)
-    return _RunnerOutcome(final_output=final_output, runner_error=runner_error)
+    if result is not None:
+        result_messages = extract_openai_messages(result, model=prepared.config.model)
+        if result_messages:
+            messages = result_messages
+    return _RunnerOutcome(final_output=final_output, runner_error=runner_error, messages=messages)
 
 
 def _handle_stream_event(

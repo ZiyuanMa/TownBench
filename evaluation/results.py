@@ -16,6 +16,7 @@ class EpisodeRunResult(BaseModel):
     final_output: str
     runner_error: str | None = None
     score: EpisodeScore
+    messages: list[dict[str, Any]] = Field(default_factory=list)
     trace: list[TraceEntry] = Field(default_factory=list)
     final_state: dict[str, Any] = Field(default_factory=dict)
     final_observation: dict[str, Any] = Field(default_factory=dict)
@@ -28,6 +29,7 @@ def build_episode_result(
     env: TownBenchEnv,
     final_output: str,
     runner_error: str | None,
+    messages: list[dict[str, Any]] | None = None,
 ) -> EpisodeRunResult:
     trace = env.get_trace()
     score = score_episode(trace, env.state)
@@ -38,6 +40,7 @@ def build_episode_result(
         final_output=final_output,
         runner_error=runner_error,
         score=score,
+        messages=list(messages or []),
         trace=trace,
         final_state=env.state.model_dump(),
         final_observation=env.get_observation().model_dump(),

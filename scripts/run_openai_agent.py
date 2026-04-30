@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from scripts.run_result_utils import resolve_output_path, save_result_payload
 from townbench_agents.openai.config import OpenAIAgentConfig
 from townbench_agents.openai.runner import run_openai_agent_episode, run_openai_agent_episode_streamed
 
@@ -25,9 +26,10 @@ def parse_args() -> argparse.Namespace:
         help="Path to the scenario yaml.",
     )
     parser.add_argument(
-        "--output",
+        "--output-dir",
         default="",
-        help="Optional path to write the structured result json.",
+        dest="output_dir",
+        help="Directory to write the structured result json. Defaults to artifacts/runs/openai/<scenario>/.",
     )
     parser.add_argument(
         "--model",
@@ -91,10 +93,14 @@ def main() -> int:
     payload = result.model_dump()
     print(json.dumps(payload, ensure_ascii=False, indent=2))
 
-    if args.output:
-        output_path = Path(args.output)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    output_path = resolve_output_path(
+        root=ROOT,
+        runner_name="openai",
+        scenario_path=args.scenario,
+        output_dir=args.output_dir or None,
+    )
+    save_result_payload(payload, output_path)
+    print(f"Saved result to {output_path}", file=sys.stderr)
 
     return 0
 

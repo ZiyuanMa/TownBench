@@ -58,7 +58,7 @@ def _prepare_deepseek_input_items(items: str | list[Any]) -> str | list[Any]:
         if (
             _is_reasoning_item(item)
             and index + 2 < len(items)
-            and _is_assistant_output_message(items[index + 1])
+            and _is_assistant_message(items[index + 1])
             and _is_function_call(items[index + 2])
         ):
             prepared.append(items[index + 1])
@@ -77,12 +77,8 @@ def _is_reasoning_item(item: Any) -> bool:
     return _item_type(item) == "reasoning"
 
 
-def _is_assistant_output_message(item: Any) -> bool:
-    return (
-        _item_type(item) == "message"
-        and _item_value(item, "role") == "assistant"
-        and bool(_item_value(item, "content"))
-    )
+def _is_assistant_message(item: Any) -> bool:
+    return _item_type(item) == "message" and _item_value(item, "role") == "assistant"
 
 
 def _is_function_call(item: Any) -> bool:

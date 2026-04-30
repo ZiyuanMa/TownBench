@@ -37,6 +37,22 @@ class FakeModelSettings:
         self.kwargs = kwargs
 
 
+class _FakeRawResponse:
+    def __init__(self, items):
+        self._items = items
+
+    def to_input_items(self):
+        return list(self._items)
+
+
+def _assistant_output_message(text: str) -> dict:
+    return {
+        "type": "message",
+        "role": "assistant",
+        "content": [{"type": "output_text", "text": text}],
+    }
+
+
 class FakeRunner:
     @staticmethod
     def run_sync(agent, agent_input, *, max_turns=None, run_config=None):
@@ -59,7 +75,10 @@ class FakeRunner:
                 json.dumps({"object_id": "completion_log", "action_name": "record_order"}),
             )
         )
-        return SimpleNamespace(final_output="Order paid.")
+        return SimpleNamespace(
+            final_output="Order paid.",
+            raw_responses=[_FakeRawResponse([_assistant_output_message("Order paid.")])],
+        )
 
 
 class MaxTurnsExceeded(Exception):
@@ -79,6 +98,7 @@ class FakeStreamResult:
 
     def __init__(self, agent):
         self.agent = agent
+        self.raw_responses = [_FakeRawResponse([_assistant_output_message("Order paid.")])]
 
     async def stream_events(self):
         yield SimpleNamespace(type="raw_response_event", data=SimpleNamespace(delta="Order"))
@@ -201,6 +221,7 @@ def test_run_openai_agent_episode_returns_score_and_trace():
 
     assert result.final_output == "Order paid."
     assert result.done is False
+    assert result.messages == [{"role": "assistant", "content": "Order paid."}]
     assert result.score.final_money == 21
     assert len(result.trace) == 3
 
@@ -240,8 +261,59 @@ def test_run_openai_agent_episode_streamed_emits_text_and_returns_result():
     assert "tool_called" in events
     assert any(item.startswith("tool_output:") for item in events)
     assert result.final_output == "Order paid."
+    assert result.messages == [{"role": "assistant", "content": "Order paid."}]
     assert result.score.final_money == 21
     assert len(result.trace) == 3
+
+
+def test_run_openai_agent_episode_saves_reasoning_messages_by_default():
+    class ReasoningRunner:
+        @staticmethod
+        def run_sync(agent, agent_input, *, max_turns=None, run_config=None):
+            del agent, agent_input, max_turns, run_config
+            return SimpleNamespace(
+                final_output="Checked status.",
+                raw_responses=[
+                    _FakeRawResponse(
+                        [
+                            {
+                                "type": "reasoning",
+                                "summary": [{"type": "summary_text", "text": "Need current status first."}],
+                            },
+                            {
+                                "type": "function_call",
+                                "call_id": "call_status",
+                                "name": "check_status",
+                                "arguments": "{}",
+                            },
+                        ]
+                    )
+                ],
+            )
+
+    env = TownBenchEnv(load_scenario(_scenario_path()))
+
+    result = run_openai_agent_episode(
+        env=env,
+        config=OpenAIAgentConfig(model="deepseek-v4-flash", max_turns=4),
+        build_agent_fn=_build_fake_agent,
+        runner=ReasoningRunner,
+    )
+
+    assert result.messages == [
+        {
+            "role": "assistant",
+            "content": None,
+            "reasoning_content": "Need current status first.",
+            "tool_calls": [
+                {
+                    "id": "call_status",
+                    "type": "function",
+                    "function": {"name": "check_status", "arguments": "{}"},
+                }
+            ],
+        }
+    ]
 
 
 def test_openai_agents_sdk_import_is_not_shadowed():
@@ -306,6 +378,49 @@ def test_deepseek_input_preparation_keeps_reasoning_with_text_and_tool_call():
         {
             "role": "assistant",
             "content": "I will check.",
+            "tool_calls": [
+                {
+                    "id": "call_status",
+                    "type": "function",
+                    "function": {"name": "check_status", "arguments": "{}"},
+                }
+            ],
+            "reasoning_content": "need current status",
+        }
+    ]
+
+
+def test_deepseek_input_preparation_keeps_reasoning_with_empty_assistant_tool_call_message():
+    items = [
+        {
+            "type": "reasoning",
+            "id": "fake-id",
+            "summary": [{"type": "summary_text", "text": "need current status"}],
+        },
+        {
+            "type": "message",
+            "role": "assistant",
+            "content": [],
+        },
+        {
+            "type": "function_call",
+            "call_id": "call_status",
+            "name": "check_status",
+            "arguments": "{}",
+        },
+    ]
+
+    prepared = _prepare_deepseek_input_items(items)
+
+    assert [item["type"] for item in prepared] == ["message", "reasoning", "function_call"]
+    assert "id" not in prepared[1]
+
+    from agents.models.chatcmpl_converter import Converter
+
+    messages = Converter.items_to_messages(prepared, model="deepseek-v4-flash")
+    assert messages == [
+        {
+            "role": "assistant",
             "tool_calls": [
                 {
                     "id": "call_status",

@@ -38,7 +38,14 @@ class FakeRunnableAgent:
         tools["move_to"]("workshop")
         tools["call_action"]("tea_station", "brew_tea")
         tools["call_action"]("completion_log", "record_order")
-        return {"messages": [_FakeMessage("Order paid.")]}
+        return {
+            "messages": [
+                AIMessage(
+                    content="Order paid.",
+                    additional_kwargs={"reasoning_content": "Need to record the completed order."},
+                )
+            ]
+        }
 
 
 class FakeRecursionLimitError(Exception):
@@ -62,7 +69,7 @@ class DefaultLimitRunnableAgent:
 
     def invoke(self, agent_input, config=None):
         assert config == {"recursion_limit": 8}
-        return {"messages": [_FakeMessage("Used explicit recursion limit.")]}
+        return {"messages": [AIMessage(content="Used explicit recursion limit.")]}
 
 
 class FakeStreamRunnableAgent:
@@ -76,7 +83,23 @@ class FakeStreamRunnableAgent:
         yield {"type": "messages", "data": (_FakeMessage("Order"), {"node": "model"})}
         yield {
             "type": "updates",
-            "data": {"model": {"messages": [_FakeToolCallMessage()]}},
+            "data": {
+                "model": {
+                    "messages": [
+                        AIMessage(
+                            content="",
+                            additional_kwargs={"reasoning_content": "Need to move first."},
+                            tool_calls=[
+                                {
+                                    "id": "call_move",
+                                    "name": "move_to",
+                                    "args": {"target_id": "workshop"},
+                                }
+                            ],
+                        )
+                    ]
+                }
+            },
         }
         tools = {tool.__name__: tool for tool in self.tools}
         tools["move_to"]("workshop")
@@ -89,7 +112,16 @@ class FakeStreamRunnableAgent:
         yield {"type": "messages", "data": (_FakeMessage(" paid."), {"node": "model"})}
         yield {
             "type": "updates",
-            "data": {"model": {"messages": [_FakeMessage("Order paid.")]}},
+            "data": {
+                "model": {
+                    "messages": [
+                        AIMessage(
+                            content="Order paid.",
+                            additional_kwargs={"reasoning_content": "Order is complete."},
+                        )
+                    ]
+                }
+            },
         }
 
 
@@ -97,12 +129,6 @@ class _FakeMessage:
     def __init__(self, text: str):
         self.content = text
         self.content_blocks = [{"type": "text", "text": text}]
-
-
-class _FakeToolCallMessage:
-    content = ""
-    content_blocks = [{"type": "tool_call", "name": "move_to", "args": {"target_id": "workshop"}}]
-    tool_calls = [{"name": "move_to", "args": {"target_id": "workshop"}}]
 
 
 def _build_fake_agent(env, config, **_kwargs):
@@ -326,6 +352,13 @@ def test_run_langchain_agent_episode_returns_score_and_trace():
     assert result.public_rules[0].startswith("Actions cost time")
     assert result.done is False
     assert result.termination_reason is None
+    assert result.messages == [
+        {
+            "role": "assistant",
+            "content": "Order paid.",
+            "reasoning_content": "Need to record the completed order.",
+        }
+    ]
     assert result.score.survived_days == 1
     assert result.score.final_money == 21
     assert len(result.trace) == 3
@@ -358,6 +391,7 @@ def test_run_langchain_agent_episode_uses_explicit_recursion_limit():
     )
 
     assert result.final_output == "Used explicit recursion limit."
+    assert result.messages == [{"role": "assistant", "content": "Used explicit recursion limit."}]
 
 
 def test_run_langchain_agent_episode_streamed_emits_text_and_returns_result():
@@ -381,3 +415,22 @@ def test_run_langchain_agent_episode_streamed_emits_text_and_returns_result():
     assert any(item.startswith("tool_output:") for item in events)
     assert result.final_output == "Order paid."
     assert result.done is False
+    assert result.messages == [
+        {
+            "role": "assistant",
+            "content": "",
+            "reasoning_content": "Need to move first.",
+            "tool_calls": [
+                {
+                    "id": "call_move",
+                    "type": "function",
+                    "function": {"name": "move_to", "arguments": "{\"target_id\": \"workshop\"}"},
+                }
+            ],
+        },
+        {
+            "role": "assistant",
+            "content": "Order paid.",
+            "reasoning_content": "Order is complete.",
+        },
+    ]

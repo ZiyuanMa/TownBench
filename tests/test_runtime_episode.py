@@ -46,5 +46,23 @@ def test_build_episode_result_scores_final_state():
 
     assert isinstance(result, EpisodeRunResult)
     assert result.final_output == "Moved once."
+    assert result.messages == []
     assert result.score.step_count == 1
     assert result.trace[0].normalized_action["type"] == "move_to"
+
+
+def test_build_episode_result_preserves_captured_messages():
+    scenario_path = Path(__file__).resolve().parents[1] / "scenarios" / "demo_town" / "scenario.yaml"
+    env = TownBenchEnv(load_scenario(scenario_path))
+    env.reset()
+
+    result = build_episode_result(
+        env=env,
+        final_output="Checked status.",
+        runner_error=None,
+        messages=[{"role": "assistant", "content": "", "reasoning_content": "Need more info first."}],
+    )
+
+    assert result.messages == [
+        {"role": "assistant", "content": "", "reasoning_content": "Need more info first."}
+    ]
